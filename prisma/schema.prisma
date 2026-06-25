@@ -1,0 +1,124 @@
+// IconPack Hub — schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String?
+  passwordHash String?
+  role         String         @default("user") // "user" | "admin"
+  credits      Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  subscriptions Subscription[]
+  purchases     Purchase[]
+  customIcons   CustomIcon[]
+  customPacks   CustomPack[]
+}
+
+model Pack {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  nameRu      String
+  nameEn      String
+  descRu      String
+  descEn      String
+  category    String   // "languages" | "frameworks" | "tools" | "concepts"
+  style       String   @default("outline") // "outline" | "filled" | "duotone"
+  tags        String   @default("") // comma-separated
+  priceCredits Int     @default(10)
+  isFree      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  icons         Icon[]
+  customPacks   CustomPack[]
+  customIcons   CustomIcon[]
+}
+
+model Icon {
+  id        String   @id @default(cuid())
+  packId    String
+  slug      String
+  nameRu    String
+  nameEn    String
+  keywords  String   @default("")
+  svg       String   // raw SVG body (without outer <svg> wrapper attributes controlled at runtime)
+  viewBox   String   @default("0 0 24 24")
+  createdAt DateTime @default(now())
+
+  pack        Pack             @relation(fields: [packId], references: [id], onDelete: Cascade)
+  customIcons CustomIcon[]
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  plan      String   // "monthly" | "yearly"
+  status    String   @default("active") // "active" | "cancelled" | "expired"
+  startedAt DateTime @default(now())
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Purchase {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String   // "pack" | "credits" | "subscription"
+  refId     String?  // packId or plan id
+  amount    Float    // money paid (mock)
+  credits   Int      @default(0) // credits gained or spent (negative for spend)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CustomIcon {
+  id              String   @id @default(cuid())
+  userId          String
+  baseIconId      String?
+  basePackId      String?
+  name            String
+  config          String   // JSON: { color, stroke, size, bg, rotation, color2, ... }
+  svgSnapshot     String   // cached rendered svg
+  createdAt       DateTime @default(now())
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  baseIcon    Icon?             @relation(fields: [baseIconId], references: [id], onDelete: SetNull)
+  basePack    Pack?             @relation(fields: [basePackId], references: [id], onDelete: SetNull)
+  customPacks CustomPackIcon[]
+}
+
+model CustomPack {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  basePack   Pack?             @relation(fields: [basePackId], references: [id], onDelete: SetNull)
+  basePackId String?
+  icons      CustomPackIcon[]
+}
+
+model CustomPackIcon {
+  id            String   @id @default(cuid())
+  customPackId  String
+  customIconId  String?
+  baseIconId    String?
+  sortOrder     Int      @default(0)
+
+  customPack   CustomPack  @relation(fields: [customPackId], references: [id], onDelete: Cascade)
+  customIcon   CustomIcon? @relation(fields: [customIconId], references: [id], onDelete: Cascade)
+}
