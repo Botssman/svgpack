@@ -2,6 +2,42 @@
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { View } from '@/app/page'
+import { PACKS } from '@/lib/packs-data'
+
+// Build slug -> svg map from canonical pack data.
+// For home-page-only icons (copy, card, palette, globe) we use Lucide paths directly.
+function svgBySlug(slug: string): string {
+  for (const pack of PACKS) {
+    const found = pack.icons.find((i) => i.slug === slug)
+    if (found) return found.svg
+  }
+  return ''
+}
+
+const ICONS: Record<string, string> = {
+  html5: svgBySlug('html5'),
+  css3: svgBySlug('css3'),
+  js: svgBySlug('javascript'),
+  ts: svgBySlug('typescript'),
+  react: svgBySlug('react'),
+  vue: svgBySlug('vue'),
+  angular: svgBySlug('angular'),
+  node: svgBySlug('nodejs'),
+  git: svgBySlug('git'),
+  docker: svgBySlug('docker'),
+  terminal: svgBySlug('terminal'),
+  figma: svgBySlug('figma'),
+  browser: svgBySlug('browser'),
+  server: svgBySlug('server'),
+  api: svgBySlug('api'),
+  database: svgBySlug('database'),
+  // Lucide paths for home-only icons (ISC license)
+  component: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  card: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  palette: '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+}
 
 export function Home({ nav }: { nav: (v: View) => void }) {
   const { t } = useI18n()
@@ -218,30 +254,6 @@ function Faq({ q, a }: { q: string; a: string }) {
       <p className="text-sm text-slate-600 leading-relaxed">{a}</p>
     </div>
   )
-}
-
-const ICONS = {
-  html5: '<path d="M4 4l1.5 16L12 22l6.5-2L20 4z"/><path d="M7 8h10l-.5 5H8.5L8.5 17 12 18l3.5-1 .3-3"/><path d="M8 6h8"/>',
-  css3: '<path d="M4 4l1.5 16L12 22l6.5-2L20 4z"/><path d="M7 8h10l-.3 3H8.5L8.7 14h6.6l-.3 3-3 1-3-1-.2-2"/>',
-  js: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17c0 1-.5 1.5-2 1.5"/><path d="M14 17c0 1 .8 1.5 2 1.5s2-.7 2-1.8c0-2-4-1.5-4-3.5 0-.8.6-1.3 1.7-1.3"/><path d="M11.5 13v5.5"/>',
-  ts: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 11h6"/><path d="M12 11v6"/><path d="M16 16.2c0 .9.7 1.4 1.8 1.4 1 0 1.7-.5 1.7-1.4 0-2-3.5-1.2-3.5-3 0-.7.6-1.2 1.6-1.2.8 0 1.4.3 1.7.9"/>',
-  react: '<circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>',
-  vue: '<path d="M3 4l9 16L21 4z"/><path d="M7 6l5 9 5-9"/>',
-  angular: '<path d="M12 2l9 4-2 12-7 4-7-4L3 6z"/><path d="M8 15l4-9 4 9"/><path d="M9.5 12h5"/>',
-  node: '<path d="M12 2L4 7v10l8 5 8-5V7z"/><path d="M9 9c0-1.5 1.5-2 3-2s3 .5 3 2-1.5 2-3 2-3 .5-3 2 1.5 2 3 2 3-.5 3-2"/>',
-  git: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="9" r="2.5"/><path d="M6 8.5v7"/><path d="M18 11.5c0 4-6 2-6 6.5"/>',
-  docker: '<rect x="3" y="10" width="4" height="4"/><rect x="8" y="10" width="4" height="4"/><rect x="13" y="10" width="4" height="4"/><rect x="8" y="5" width="4" height="4"/><path d="M3 14c2 4 8 5 12 4 3-.7 5-3 5-5"/>',
-  terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/>',
-  figma: '<path d="M9 3h3v6H9c-1.5 0-3-1.5-3-3s1.5-3 3-3z"/><path d="M12 3h3c1.5 0 3 1.5 3 3s-1.5 3-3 3h-3z"/><path d="M9 9h3v6H9c-1.5 0-3-1.5-3-3s1.5-3 3-3z"/><path d="M12 9h3c1.5 0 3 1.5 3 3s-1.5 3-3 3h-3z"/><circle cx="10.5" cy="18" r="3"/>',
-  browser: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><circle cx="6" cy="6.5" r="0.5" fill="currentColor"/><circle cx="8" cy="6.5" r="0.5" fill="currentColor"/><circle cx="10" cy="6.5" r="0.5" fill="currentColor"/>',
-  server: '<rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><circle cx="7" cy="7" r="0.7" fill="currentColor"/><circle cx="7" cy="17" r="0.7" fill="currentColor"/><path d="M11 7h6"/><path d="M11 17h6"/>',
-  api: '<rect x="3" y="7" width="6" height="10" rx="1"/><rect x="15" y="7" width="6" height="10" rx="1"/><path d="M9 10h6"/><path d="M9 14h6"/>',
-  database: '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
-  component: '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>',
-  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
-  card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/>',
-  palette: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="8" r="1" fill="currentColor"/><circle cx="16" cy="10" r="1" fill="currentColor"/><circle cx="14" cy="15" r="1" fill="currentColor"/>',
-  globe: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
 }
 
 const PREVIEW_ICONS = [
