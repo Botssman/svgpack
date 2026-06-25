@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { renderSvg, makeZip, CustomConfig } from '@/lib/svg'
 
-// GET /api/download/pack?slug=xxx[&cfg=JSON]
+// GET /api/download/pack?slug=xxx[&cfg=JSON][&cfgMap=JSON]
+//   cfg    — single CustomConfig applied to ALL icons (legacy / "all" mode)
+//   cfgMap — JSON object { iconId: CustomConfig } for per-icon overrides
+//            ("single" / "multi" customize modes). Icons missing from the
+//            map fall back to default rendering.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const slug = searchParams.get('slug')
@@ -20,12 +24,28 @@ export async function GET(req: NextRequest) {
     try { cfg = JSON.parse(cfgRaw) as CustomConfig } catch { cfg = undefined }
   }
 
+  const cfgMapRaw = searchParams.get('cfgMap')
+  let cfgMap: Record<string, CustomConfig> | undefined
+  if (cfgMapRaw) {
+    try { cfgMap = JSON.parse(cfgMapRaw) as Record<string, CustomConfig> } catch { cfgMap = undefined }
+  }
+
+  const defaultSvg = (ic: { svg: string; viewBox: string }) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="${ic.viewBox}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${ic.svg}</svg>`
+
+  const renderForIcon = (ic: { id: string; svg: string; viewBox: string }) => {
+    // Per-icon override wins over global cfg
+    if (cfgMap && cfgMap[ic.id]) return renderSvg(ic.svg, ic.viewBox, cfgMap[ic.id])
+    if (cfg) return renderSvg(ic.svg, ic.viewBox, cfg)
+    return defaultSvg(ic)
+  }
+
   const files = pack.icons.map((ic) => ({
     name: `${pack.slug}/${ic.slug}.svg`,
-    content: cfg ? renderSvg(ic.svg, ic.viewBox, cfg) : `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="${ic.viewBox}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${ic.svg}</svg>`,
+    content: renderForIcon(ic),
   }))
 
-  // Add a sprite file
+  // Add a sprite file (uses raw icon svg, not customized — sprite is a reference)
   const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${pack.icons.map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
   files.push({ name: `${pack.slug}/sprite.svg`, content: sprite })
 
