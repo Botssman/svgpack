@@ -46,6 +46,56 @@ bun run dev
 
 Откройте http://localhost:3000
 
+## Деплой на Vercel + Turso (бесплатно)
+
+Проект готов к деплою на Vercel с базой данных Turso (SQLite-в-облаке, бесплатный тариф).
+
+### Шаг 1. Создать базу в Turso
+
+1. Зарегистрируйся на https://turso.tech (через GitHub, 30 секунд)
+2. В дашборде нажми **New database** → имя `svgpack` → **Create**
+3. Открой созданную БД, нажми **Settings** → скопируй:
+   - `libsql://svgpack-<user>.turso.io` — это `DATABASE_URL`
+   - Нажми **Create auth token** → скопируй длинный токен — это `DATABASE_AUTH_TOKEN`
+
+### Шаг 2. Импортировать репозиторий в Vercel
+
+1. Зарегистрируйся на https://vercel.com (через GitHub)
+2. **Add New** → **Project** → найди `Botssman/svgpack` → **Import**
+3. Framework Preset: **Next.js** (автоматом)
+4. **Environment Variables** — добавь две:
+   - `DATABASE_URL` = `libsql://svgpack-<user>.turso.io`
+   - `DATABASE_AUTH_TOKEN` = (токен из Turso)
+5. **Deploy** (≈2 минуты)
+
+### Шаг 3. Применить схему и сидинг на Turso
+
+Локально (после `git pull`):
+
+```bash
+# Временно переключаемся на Turso
+export DATABASE_URL="libsql://svgpack-<user>.turso.io"
+export DATABASE_AUTH_TOKEN="<токен>"
+
+# Применяем схему
+bunx prisma db push
+
+# Запускаем сидинг (создаст 4 пакета + 2 юзера)
+bunx tsx scripts/seed.ts
+```
+
+### Шаг 4. Проверить
+
+Vercel даст URL вида `svgpack.vercel.app`. Открой — увидишь каталог.
+Зайди в личный кабинет под `admin@iconhub.test` — увидишь 1000 кредитов.
+
+### Лимиты бесплатных тарифов
+
+| Сервис | Лимит | Хватит на |
+| ------ | ----- | --------- |
+| Vercel Hobby | 100 GB-ч/мес бандвич, serverless функции | ~100k визитов/мес |
+| Turso Free | 9 GB storage, 1B reads/мес, 25M writes/мес | для MVP — с большим запасом |
+
 ## Демо-аккаунты
 
 После сидинга в базе появятся два пользователя:
