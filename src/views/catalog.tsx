@@ -26,17 +26,34 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
   const [q, setQ] = useState('')
   const [category, setCategory] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setError(null)
     const url = `/api/packs?category=${category}${q ? `&q=${encodeURIComponent(q)}` : ''}`
-    fetch(url).then(r => r.json()).then(d => {
-      if (cancelled) return
-      setPacks(d.packs || [])
-      setLoading(false)
-    })
+    fetch(url)
+      .then(async r => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          throw new Error(data?.error || `HTTP ${r.status}`)
+        }
+        return data
+      })
+      .then(d => {
+        if (cancelled) return
+        setPacks(d.packs || [])
+        setLoading(false)
+      })
+      .catch(e => {
+        if (cancelled) return
+        setError(e?.message || 'Не удалось загрузить каталог')
+        setLoading(false)
+      })
     return () => { cancelled = true }
-  }, [category, q])
+  }, [category, q, retryCount])
 
   const totalIcons = useMemo(() => packs.reduce((s, p) => s + p.icons.length, 0), [packs])
 
@@ -95,6 +112,22 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-64 rounded-xl bg-slate-100 animate-pulse" />
           ))}
+        </div>
+      ) : error ? (
+        <div className="text-center py-12 rounded-xl border border-red-200 bg-red-50">
+          <div className="text-red-700 font-medium mb-2">Не удалось загрузить каталог</div>
+          <div className="text-xs text-red-600 font-mono mb-4 max-w-2xl mx-auto break-all">{error}</div>
+          <button
+            onClick={() => setRetryCount(n => n + 1)}
+            className="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
+          >
+            Повторить
+          </button>
+          <div className="mt-6 text-xs text-slate-500">
+            Диагностика: <a href="/api/health" target="_blank" className="underline">/api/health</a>
+            {' · '}
+            <a href="/api/packs" target="_blank" className="underline">/api/packs</a>
+          </div>
         </div>
       ) : packs.length === 0 ? (
         <div className="text-center py-20 text-slate-500">

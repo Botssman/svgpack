@@ -14,24 +14,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Z.ai Code Scaffold - AI-Powered Development",
-  description: "Modern Next.js scaffold optimized for AI-powered development with Z.ai. Built with TypeScript, Tailwind CSS, and shadcn/ui.",
-  keywords: ["Z.ai", "Next.js", "TypeScript", "Tailwind CSS", "shadcn/ui", "AI development", "React"],
-  authors: [{ name: "Z.ai Team" }],
+  title: "IconPack Hub — Паки SVG-иконок для веб-разработки",
+  description: "Каталог SVG-иконок для языков программирования, фреймворков и инструментов. Кастомизация, сборка своего пака, скачивание в SVG/PNG/JSON.",
+  keywords: ["SVG icons", "icon pack", "иконки", "веб-разработка", "React", "TypeScript", "frontend"],
+  authors: [{ name: "IconPack Hub" }],
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
   openGraph: {
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
-    url: "https://chat.z.ai",
-    siteName: "Z.ai",
+    title: "IconPack Hub — Паки SVG-иконок",
+    description: "Каталог SVG-иконок для веб-разработки с кастомизацией и сборкой",
+    siteName: "IconPack Hub",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Z.ai Code Scaffold",
-    description: "AI-powered development with modern React stack",
+    title: "IconPack Hub — Паки SVG-иконок",
+    description: "Каталог SVG-иконок для веб-разработки",
   },
 };
 
