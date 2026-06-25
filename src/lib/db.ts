@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
+import { PrismaLibSQL } from '@prisma/adapter-libsql'
 import { createClient } from '@libsql/client'
 
 const globalForPrisma = globalThis as unknown as {
@@ -7,20 +7,31 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClient() {
-  // If DATABASE_URL is a libsql:// URL (Turso), use the libSQL adapter.
-  // Otherwise (local file: SQLite), fall back to plain PrismaClient.
+  // Look for a libsql URL in DIRECT_DATABASE_URL first (Turso cloud runtime),
+  // then in DATABASE_URL. The latter also has to satisfy Prisma's env-var
+  // validation (must be file: for sqlite) — so on Turso we keep DATABASE_URL
+  // = "file:/dev/null" and pass the real URL via DIRECT_DATABASE_URL.
+  const directUrl = process.env.DIRECT_DATABASE_URL ?? ''
   const url = process.env.DATABASE_URL ?? ''
 
-  if (url.startsWith('libsql://') || url.startsWith('http://') || url.startsWith('https://')) {
+  const libsqlUrl =
+    directUrl.startsWith('libsql://') || directUrl.startsWith('http') ? directUrl
+    : url.startsWith('libsql://') || url.startsWith('http') ? url
+    : ''
+
+  if (libsqlUrl) {
     const libsql = createClient({
-      url,
+      url: libsqlUrl,
       authToken: process.env.DATABASE_AUTH_TOKEN,
     })
-    const adapter = new PrismaLibSql(libsql)
-    return new PrismaClient({ adapter, log: ['error', 'warn'] } as never)
+    const adapter = new PrismaLibSQL(libsql)
+    return new PrismaClient({
+      adapter,
+      log: ['error', 'warn'],
+    } as never)
   }
 
-  // Local dev: keep using plain SQLite file (no auth token needed)
+  // Local dev: plain SQLite file
   return new PrismaClient({ log: ['error', 'warn'] })
 }
 
