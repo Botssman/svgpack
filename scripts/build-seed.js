@@ -82,12 +82,21 @@ function lucide(name) {
 
 /**
  * Wrap an SVG body so that all stroke / fill references use currentColor.
- * Lucide icons already use stroke="currentColor", but we double-check.
+ * Lucide icons don't include stroke="currentColor" themselves — they
+ * rely on the parent <svg stroke="currentColor">. We add it explicitly
+ * to each shape so the icon is self-contained and the customizer's
+ * color picker works.
  */
 function outline(svg) {
+  // Replace any existing stroke="..." with currentColor
+  svg = svg.replace(/stroke="[^"]*"/g, 'stroke="currentColor"')
+  // Replace any existing fill="..." (except "none") with currentColor
+  svg = svg.replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"')
+  // Add stroke="currentColor" to shapes that have no stroke
+  svg = svg.replace(/<(path|circle|rect|ellipse|line|polyline)(?![^>]*stroke=)/g, '<$1 stroke="currentColor"')
+  // Add fill="none" to shapes that have no fill (so they're outlines)
+  svg = svg.replace(/<(path|circle|rect|ellipse|line|polyline)(?![^>]*fill=)/g, '$1 fill="none"')
   return svg
-    .replace(/stroke="[^"]*"/g, 'stroke="currentColor"')
-    .replace(/(<path|<circle|<rect|<ellipse|<line|<polyline)(?![^>]*fill=)/g, '$1 fill="none"')
 }
 
 /**
