@@ -1,23 +1,64 @@
 /**
- * Build src/lib/packs-data.ts with high-quality SVG icons:
- * - For brand logos (HTML5, CSS3, JS, TS, Python, PHP, React, Vue, Angular, Svelte,
- *   Next.js, Node.js, Git, Docker, npm, Figma, VS Code, Vite, Webpack)
- *   we use canonical Simple Icons paths (single path d="..." on viewBox 0 0 24 24).
- * - For generic concepts (browser, server, api, database, component, layout,
- *   responsive, deploy, security, sql, json, terminal) we use Lucide icons
- *   (already installed, ISC license, well-known outline style).
+ * Build src/lib/packs-data.ts with high-quality SVG icons.
+ *
+ * Design rules (CRITICAL — do not break these):
+ *   1. EVERY icon stores its inner SVG with `fill="currentColor"` and
+ *      `stroke="none"`. NEVER hardcode brand colors like fill="#E34F26".
+ *      Reason: the customize view lets the user pick any color via
+ *      <input type="color">, and renderSvg() in src/lib/svg.ts replaces
+ *      the literal `currentColor` token with the chosen color. If we
+ *      hardcode a color, the customizer is broken.
+ *   2. Brand logos are FILLED shapes (not stroked outlines). Stroking
+ *      them produces ugly wireframes because their paths are designed
+ *      to be filled.
+ *   3. Concept icons (browser, server, database, etc.) are OUTLINES —
+ *      they use <path fill="none" stroke="currentColor" stroke-width="2"
+ *      stroke-linecap="round" stroke-linejoin="round" .../>. The
+ *      renderSvg() pipeline replaces `currentColor` in stroke attrs too.
+ *
+ * Sources:
+ *   - Brand logos: simple-icons npm package (3446+ canonical brand SVGs)
+ *   - Generic concepts: lucide-react (already installed, ISC license)
  *
  * Output: /home/z/my-project/src/lib/packs-data.ts (overwrites existing).
- *
  * Run: node /home/z/my-project/scripts/build-seed.js
  */
 const fs = require('fs')
 const path = require('path')
+const si = require('simple-icons')
 
 // =====================================================================
-// LUCIDE EXTRACTOR — reads node_modules/lucide-react/dist/esm/icons/<name>.js
-// and returns an array of SVG element strings ready to embed as inner SVG.
+// HELPERS
 // =====================================================================
+
+/**
+ * Brand logo from simple-icons → filled <path> using currentColor.
+ * User can override color via the customizer.
+ */
+function brand(slug) {
+  // simple-icons exports icons as si<PascalCase> e.g. siHtml5, siJavascript
+  const key = 'si' + slug.charAt(0).toUpperCase() + slug.slice(1)
+  const icon = si[key]
+  if (!icon) throw new Error(`simple-icons: icon "${slug}" not found (looked for ${key})`)
+  return `<path fill="currentColor" stroke="none" fill-rule="evenodd" d="${icon.path}"/>`
+}
+
+/**
+ * Brand logo wrapped in a rounded square background — useful when the
+ * raw logo path is too thin / unfamiliar on its own. Background uses
+ * currentColor too, foreground is white.
+ */
+function brandOnBg(slug) {
+  const key = 'si' + slug.charAt(0).toUpperCase() + slug.slice(1)
+  const icon = si[key]
+  if (!icon) throw new Error(`simple-icons: icon "${slug}" not found`)
+  return `<rect x="1" y="1" width="22" height="22" rx="4" fill="currentColor" stroke="none"/><g fill="#FFFFFF" stroke="none" transform="translate(4 4) scale(0.667)"><path fill-rule="evenodd" d="${icon.path}"/></g>`
+}
+
+/**
+ * Lucide concept icon — outline style with stroke=currentColor.
+ * Reads node_modules/lucide-react/dist/esm/icons/<name>.js
+ */
 function lucide(name) {
   const file = path.join(
     '/home/z/my-project/node_modules/lucide-react/dist/esm/icons',
@@ -39,188 +80,210 @@ function lucide(name) {
     .join('')
 }
 
-// =====================================================================
-// SIMPLE ICONS — canonical brand logo paths (viewBox 0 0 24 24)
-// Source: https://simpleicons.org — all CC0 / MIT.
-//
-// Two storage formats:
-//   1. FILLED brand logos (HTML5, CSS3, JS, TS, Python, PHP):
-//      Stored as `<path fill="BRAND_COLOR" stroke="none" d="..."/>`
-//      so they render as solid colored logos, not wireframe outlines.
-//      These paths are designed to be FILLED — stroking them makes a mess.
-//   2. OUTLINE-style brand marks (React, Vue, Angular, Svelte, Next, Node,
-//      Git, Docker, Webpack, Vite, npm, Figma, VS Code):
-//      Stored as full SVG elements (<path>, <circle>, <rect>...) with
-//      fill="none" — designed to be stroked, match the outline pack style.
-// =====================================================================
-
-// Helper: wrap a filled brand path with brand color + no stroke
-function filled(color, d) {
-  return `<path fill="${color}" stroke="none" fill-rule="evenodd" d="${d}"/>`
+/**
+ * Wrap an SVG body so that all stroke / fill references use currentColor.
+ * Lucide icons already use stroke="currentColor", but we double-check.
+ */
+function outline(svg) {
+  return svg
+    .replace(/stroke="[^"]*"/g, 'stroke="currentColor"')
+    .replace(/(<path|<circle|<rect|<ellipse|<line|<polyline)(?![^>]*fill=)/g, '$1 fill="none"')
 }
 
-const BRAND_COLORS = {
-  html5: '#E34F26',
-  css3: '#1572B6',
-  javascript: '#F7DF1E',
-  typescript: '#3178C6',
-  python: '#3776AB',
-  php: '#777BB4',
-}
-
-const FILLED_BRAND_PATHS = {
-  html5:        'M1.5 0h21l-1.91 21.563L11.977 24l-8.564-2.438L1.5 0zm7.031 9.75l-.232-2.718 10.059.003.23-2.622L5.412 4.41l.698 8.01h9.126l-.326 3.426-2.91.804-2.955-.81-.188-2.11H6.248l.33 4.171L12 19.351l5.379-1.443.744-8.157H8.531z',
-  css3:         'M1.5 0h21l-1.91 21.563L11.977 24l-8.565-2.438L1.5 0zm17.09 4.413L5.41 4.41l.213 2.622 10.125.002-.255 2.716h-6.64l.24 2.573h6.182l-.366 3.523-2.91.804-2.956-.81-.188-2.11h-2.61l.29 3.855L12 19.288l5.373-1.53L18.59 4.414z',
-  javascript:   'M0 0h24v24H0V0zm22.034 18.276c-.175-1.095-.888-2.015-3.003-2.873-.736-.345-1.554-.585-1.797-1.14-.091-.33-.105-.51-.046-.705.15-.646 1.014-.827 1.683-.5.434.245.75.675.9 1.275l1.804-.901c-.21-.48-.42-.69-.66-1.005-.705-.81-1.65-1.245-3.15-1.215l-.78.099c-.734.18-1.436.555-1.86 1.065-1.044 1.185-.705 3.255.435 4.095 1.08.93 2.55 1.095 3.78 1.83.63.435.495 1.245.18 1.65-.39.45-1.065.585-1.785.42-.51-.15-.825-.555-1.005-1.065l-1.83.93c.21.48.555.93.945 1.245 2.055 1.695 5.865.854 6.255-1.425.015-.075.105-.42.075-.93l.09-.225-.063-.18zm-7.455-7.62h-2.205c0 1.905-.009 3.795-.009 5.706 0 1.215.06 2.325-.139 2.669-.335.696-1.2.609-1.59.479-.401-.21-.605-.555-.84-.99l-.015-.021-1.806 1.1c.27.715.66 1.344 1.245 1.74.81.485 1.905.66 3.045.391.75-.221 1.395-.66 1.74-1.346.495-.866.39-1.92.39-3.07.014-1.8 0-3.6 0-5.509l.014-.765-.21-.06z',
-  typescript:   'M1.125 0C.502 0 0 .502 0 1.125v21.75C0 23.498.502 24 1.125 24h21.75c.623 0 1.125-.502 1.125-1.125V1.125C24 .502 23.498 0 22.875 0zm17.363 9.75c.612 0 1.154.037 1.627.111a6.38 6.38 0 0 1 1.306.34v2.458a3.95 3.95 0 0 0-.643-.361 5.193 5.193 0 0 0-.717-.26 5.822 5.822 0 0 0-1.426-.2c-.3 0-.573.028-.819.086a2.1 2.1 0 0 0-.623.242c-.17.104-.3.229-.393.374a.888.888 0 0 0-.14.49c0 .196.053.373.156.529.103.156.246.303.43.441.182.13.395.265.635.386.242.135.503.265.781.39.376.156.736.326 1.082.51.344.183.654.391.926.625.273.232.504.497.693.791.187.295.327.632.418 1.014.076.39.117.81.117 1.245 0 .71-.117 1.351-.351 1.928a3.875 3.875 0 0 1-.984 1.451 4.4 4.4 0 0 1-1.504.926 5.687 5.687 0 0 1-1.94.315 6.99 6.99 0 0 1-1.821-.225 7.463 7.463 0 0 1-1.534-.581 6.54 6.54 0 0 1-1.275-.852v-2.715c.39.36.836.687 1.336.973.497.287 1.062.51 1.694.668.633.156 1.36.235 2.18.235.42 0 .81-.039 1.156-.117.345-.078.639-.195.873-.351a1.55 1.55 0 0 0 .539-.585 1.74 1.74 0 0 0 .187-.81 1.495 1.495 0 0 0-.156-.691 1.797 1.797 0 0 0-.469-.572 4.115 4.115 0 0 0-.762-.51c-.305-.156-.652-.316-1.047-.477-.477-.21-.939-.422-1.386-.633a5.087 5.087 0 0 1-1.187-.75 3.41 3.41 0 0 1-.81-1.046c-.199-.405-.301-.891-.301-1.455 0-.704.117-1.31.351-1.823.233-.51.555-.939.969-1.287.41-.348.9-.6 1.464-.762a6.18 6.18 0 0 1 1.785-.246zm-9.93.21h8.04v2.012H11.59v11.4H9.078v-11.4H5.558V9.96z',
-  python:       'M12 2C8 2 8 4 8 5v2h4v1H5C3 8 2 10 2 12s1 4 3 4h2v-2c0-2 1-3 3-3h6c2 0 3-1 3-3V5c0-1-1-3-5-3h-2zM9 4a1 1 0 110 2 1 1 0 010-2zM22 12c0-2-1-4-3-4h-2v2c0 2-1 3-3 3H8c-2 0-3 1-3 3v3c0 1 1 3 5 3h2c2 0 4 0 4-2v-2h-4v-1h7c2 0 3-2 3-5zM15 18a1 1 0 110 2 1 1 0 010-2z',
-}
-
-// PHP: purple oval with white "php" text — recognizable, clean
-const PHP_SVG = '<ellipse cx="12" cy="12" rx="11" ry="6.5" fill="#777BB4" stroke="none"/><text x="12" y="14.8" text-anchor="middle" font-family="ui-sans-serif, system-ui, Arial, sans-serif" font-size="7.5" font-weight="700" fill="#FFFFFF" stroke="none">php</text>'
-
-// Build FILLED_BRANDS map: slug → wrapped <path> SVG
-const FILLED_BRANDS = {}
-for (const [slug, d] of Object.entries(FILLED_BRAND_PATHS)) {
-  FILLED_BRANDS[slug] = filled(BRAND_COLORS[slug], d)
-}
-FILLED_BRANDS.php = PHP_SVG
-
-// OUTLINE-style brand marks — already have proper <path>/<circle> tags
-const OUTLINE_BRANDS = {
-  react:        '<circle cx="12" cy="12" r="2.1"/><g fill="none" stroke-width="1.5"><ellipse cx="12" cy="12" rx="10" ry="3.8"/><ellipse cx="12" cy="12" rx="10" ry="3.8" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="3.8" transform="rotate(120 12 12)"/></g>',
-  vue:          '<path d="M2 3.5h4.5L12 13l5.5-9.5H22L12 20.5 2 3.5z" fill="none"/><path d="M7 3.5h3L12 8l2-4.5h3L12 13 7 3.5z" fill="none"/>',
-  angular:      '<path d="M12 2L2 6l1.5 13L12 22l8.5-3L22 6 12 2z" fill="none"/><path d="M8 15l4-9 4 9M9.5 12h5" fill="none"/>',
-  svelte:       '<path d="M19 7c-1-2-3-3-5-3-3 0-5 2-5 4 0 1 .5 2 1.5 2.5l5 3c1 .5 1.5 1.5 1.5 2.5 0 2-2 4-5 4-2 0-4-1-5-3" fill="none"/><path d="M5 17c1 2 3 3 5 3 3 0 5-2 5-4 0-1-.5-2-1.5-2.5l-5-3c-1-.5-1.5-1.5-1.5-2.5 0-2 2-4 5-4 2 0 4 1 5 3" fill="none"/>',
-  nextjs:       '<circle cx="12" cy="12" r="10" fill="none"/><path d="M8 7v10M8 7l9 13M16 7v6" fill="none"/>',
-  nodejs:       '<path d="M12 2L3 7v10l9 5 9-5V7l-9-5z" fill="none"/><path d="M9 9c0-1.5 1.5-2 3-2s3 .5 3 2-1.5 2-3 2-3 .5-3 2 1.5 2 3 2 3-.5 3-2" fill="none"/>',
-  git:          '<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
-  docker:       '<rect x="3" y="10" width="3" height="3"/><rect x="7" y="10" width="3" height="3"/><rect x="11" y="10" width="3" height="3"/><rect x="7" y="6" width="3" height="3"/><rect x="11" y="6" width="3" height="3"/><path d="M2 13.5h15.5c0 2-1 5-4.5 6-3 .8-7-.5-8.5-3-.5-1-2-2-2.5-3z" fill="none"/>',
-  webpack:      '<path d="M12 2l9 5v10l-9 5-9-5V7l9-5z" fill="none"/><path d="M12 7l5 3v4l-5 3-5-3v-4l5-3z" fill="none"/><path d="M12 7v10M7 10l5 3 5-3" fill="none"/>',
-  vite:         '<path d="M3 4h18l-9 16L3 4z" fill="none"/><path d="M12 8l-2 4 2 4 2-4-2-4z" fill="none"/><path d="M12 8v8" fill="none"/>',
-  npm:          '<rect x="2" y="6" width="20" height="12" rx="1" fill="none"/><path d="M5 15V9h2l3 4V9M13 15V9h1.5c1.5 0 2.5.5 2.5 3s-1 3-2.5 3H13z" fill="none"/>',
-  figma:        '<path d="M9 3h3v6H9a3 3 0 1 1 0-6z" fill="none"/><path d="M12 3h3a3 3 0 1 1 0 6h-3V3z" fill="none"/><path d="M9 9h3v6H9a3 3 0 1 1 0-6z" fill="none"/><path d="M12 9h3a3 3 0 1 1 0 6h-3V9z" fill="none"/><circle cx="10.5" cy="18" r="3" fill="none"/>',
-  vscode:       '<path d="M16 3l4 2v14l-4 2-9-7-4 3-2-1V6l2-1 4 3 9-7z" fill="none"/><path d="M7 9l9 6M16 7v10" fill="none"/>',
+/**
+ * Build icon entry: [slug, nameRu, nameEn, keywords, svgBody]
+ */
+function icon(slug, nameRu, nameEn, keywords, svgBody) {
+  return [slug, nameRu, nameEn, keywords, svgBody]
 }
 
 // =====================================================================
-// LUCIDE — generic concept icons (already installed, ISC license)
-// Map icon slug → lucide icon file name.
+// PACKS
 // =====================================================================
-const LUCIDE_MAP = {
-  sql:        'database',
-  json:       'braces',
-  browser:    'app-window',
-  server:     'server',
-  api:        'webhook',
-  database:   'database',
-  component:  'blocks',
-  layout:     'layout-dashboard',
-  responsive: 'smartphone',
-  deploy:     'rocket',
-  security:   'shield-check',
-  terminal:   'square-terminal',
-}
 
-const ALL_BRANDS = { ...FILLED_BRANDS, ...OUTLINE_BRANDS }
-const BRAND_SLUGS = new Set(Object.keys(ALL_BRANDS))
-const LUCIDE_SLUGS = new Set(Object.keys(LUCIDE_MAP))
-
-function svgFor(iconSlug) {
-  if (BRAND_SLUGS.has(iconSlug)) return ALL_BRANDS[iconSlug]
-  if (LUCIDE_SLUGS.has(iconSlug)) return lucide(LUCIDE_MAP[iconSlug])
-  throw new Error('No svg source for ' + iconSlug)
-}
-
-// =====================================================================
-// PACKS DEFINITION
-// =====================================================================
 const PACKS = [
+  // ─────────────────────────────────────────────────────────────────────
   {
     slug: 'web-languages',
     nameRu: 'Языки веб-разработки',
     nameEn: 'Web Languages',
-    descRu: 'HTML, CSS, JavaScript, TypeScript, PHP, Python, SQL, JSON — базовые знаки для маркировки стека.',
-    descEn: 'HTML, CSS, JavaScript, TypeScript, PHP, Python, SQL, JSON — core stack marks.',
+    descRu: 'HTML, CSS, JavaScript, TypeScript, Python, Go, Rust, Java, PHP, Ruby и др. — базовые знаки для маркировки стека. Цвет настраивается в редакторе.',
+    descEn: 'HTML, CSS, JavaScript, TypeScript, Python, Go, Rust, Java, PHP, Ruby and more — core stack marks. Color editable in customizer.',
     category: 'languages',
     style: 'outline',
-    tags: 'code,language,web,html,css,js,ts,sql,json',
+    tags: 'code,language,web,html,css,js,ts,sql,json,go,rust,java',
     isFree: true,
     priceCredits: 10,
     icons: [
-      ['html5', 'HTML5', 'HTML5', 'html,markup,web'],
-      ['css3', 'CSS3', 'CSS3', 'css,style,design'],
-      ['javascript', 'JavaScript', 'JavaScript', 'js,ecmascript,web'],
-      ['typescript', 'TypeScript', 'TypeScript', 'ts,types,web'],
-      ['python', 'Python', 'Python', 'python,backend,snake'],
-      ['sql', 'SQL Database', 'SQL Database', 'sql,db,database,query'],
-      ['json', 'JSON', 'JSON', 'json,format,data'],
-      ['php', 'PHP', 'PHP', 'php,backend,server'],
+      icon('html5', 'HTML5', 'HTML5', 'html,markup,web', brand('html5')),
+      icon('css3', 'CSS3', 'CSS3', 'css,style,design', brand('css')),
+      icon('css', 'CSS', 'CSS', 'css,style', brand('css')),
+      icon('javascript', 'JavaScript', 'JavaScript', 'js,ecmascript,web', brand('javascript')),
+      icon('typescript', 'TypeScript', 'TypeScript', 'ts,types,web', brand('typescript')),
+      icon('python', 'Python', 'Python', 'python,backend,snake', brand('python')),
+      icon('php', 'PHP', 'PHP', 'php,backend,server', brand('php')),
+      icon('ruby', 'Ruby', 'Ruby', 'ruby,backend,rails', brand('ruby')),
+      icon('go', 'Go', 'Go', 'go,golang,backend,google', brand('go')),
+      icon('rust', 'Rust', 'Rust', 'rust,systems,backend', brand('rust')),
+      icon('java', 'Java', 'Java', 'java,jvm,backend', brand('openjdk')),
+      icon('kotlin', 'Kotlin', 'Kotlin', 'kotlin,jvm,android', brand('kotlin')),
+      icon('swift', 'Swift', 'Swift', 'swift,apple,ios', brand('swift')),
+      icon('csharp', 'C#', 'C#', 'csharp,dotnet,microsoft', brand('sharp')),
+      icon('dotnet', '.NET', '.NET', 'dotnet,microsoft,framework', brand('dotnet')),
+      icon('cpp', 'C++', 'C++', 'cpp,cplusplus,systems', brand('cplusplus')),
+      icon('c', 'C', 'C', 'c,systems,language', brand('c')),
+      icon('dart', 'Dart', 'Dart', 'dart,flutter,mobile', brand('dart')),
+      icon('scala', 'Scala', 'Scala', 'scala,jvm,functional', brand('scala')),
+      icon('elixir', 'Elixir', 'Elixir', 'elixir,erlang,beam', brand('elixir')),
+      icon('haskell', 'Haskell', 'Haskell', 'haskell,functional,pure', brand('haskell')),
+      icon('lua', 'Lua', 'Lua', 'lua,scripting,game', brand('lua')),
+      icon('perl', 'Perl', 'Perl', 'perl,scripting,sysadmin', brand('perl')),
+      icon('r', 'R', 'R', 'r,stats,datascience', brand('r')),
+      icon('sql', 'SQL Database', 'SQL Database', 'sql,db,database,query', outline(lucide('database'))),
+      icon('json', 'JSON', 'JSON', 'json,format,data', outline(lucide('braces'))),
+      icon('yaml', 'YAML', 'YAML', 'yaml,config,data', brand('yaml')),
+      icon('xml', 'XML', 'XML', 'xml,markup,data', outline(lucide('file-code'))),
+      icon('markdown', 'Markdown', 'Markdown', 'md,markdown,docs', brand('markdown')),
+      icon('graphql', 'GraphQL', 'GraphQL', 'graphql,api,query', brand('graphql')),
+      icon('sass', 'Sass', 'Sass', 'sass,scss,style', brand('sass')),
+      icon('less', 'Less', 'Less', 'less,style,css', brand('less')),
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────────
   {
     slug: 'js-frameworks',
     nameRu: 'JS-фреймворки',
     nameEn: 'JS Frameworks',
-    descRu: 'React, Vue, Angular, Svelte, Next.js, Node.js — для маркировки стека и архитектуры.',
-    descEn: 'React, Vue, Angular, Svelte, Next.js, Node.js — for stack and architecture marks.',
+    descRu: 'React, Vue, Angular, Svelte, Next.js, Nuxt, Astro, Solid, Remix и др. — для маркировки стека и архитектуры. Цвет настраивается.',
+    descEn: 'React, Vue, Angular, Svelte, Next.js, Nuxt, Astro, Solid, Remix and more — for stack and architecture marks. Color editable.',
     category: 'frameworks',
     style: 'outline',
-    tags: 'framework,react,vue,angular,svelte,next,node',
+    tags: 'framework,react,vue,angular,svelte,next,nuxt,astro,solid',
     isFree: true,
     priceCredits: 10,
     icons: [
-      ['react', 'React', 'React', 'react,library,frontend'],
-      ['vue', 'Vue', 'Vue', 'vue,framework,frontend'],
-      ['angular', 'Angular', 'Angular', 'angular,framework,ts'],
-      ['svelte', 'Svelte', 'Svelte', 'svelte,compiler,frontend'],
-      ['nextjs', 'Next.js', 'Next.js', 'next,framework,react,ssr'],
-      ['nodejs', 'Node.js', 'Node.js', 'node,js,server,runtime'],
+      icon('react', 'React', 'React', 'react,library,frontend', brand('react')),
+      icon('reactrouter', 'React Router', 'React Router', 'router,react,navigation', brand('reactrouter')),
+      icon('redux', 'Redux', 'Redux', 'redux,state,react', brand('redux')),
+      icon('vue', 'Vue', 'Vue', 'vue,framework,frontend', brand('vuedotjs')),
+      icon('pinia', 'Pinia', 'Pinia', 'pinia,vue,state', brand('pinia')),
+      icon('nuxt', 'Nuxt', 'Nuxt', 'nuxt,vue,ssr', brand('nuxt')),
+      icon('angular', 'Angular', 'Angular', 'angular,framework,ts', brand('angular')),
+      icon('svelte', 'Svelte', 'Svelte', 'svelte,compiler,frontend', brand('svelte')),
+      icon('kit', 'SvelteKit', 'SvelteKit', 'sveltekit,framework,ssr', brand('svelte')),
+      icon('solid', 'Solid', 'Solid', 'solid,reactive,frontend', brand('solid')),
+      icon('astro', 'Astro', 'Astro', 'astro,static,frontend', brand('astro')),
+      icon('remix', 'Remix', 'Remix', 'remix,react,ssr', brand('remix')),
+      icon('nextjs', 'Next.js', 'Next.js', 'next,framework,react,ssr', brand('nextdotjs')),
+      icon('gatsby', 'Gatsby', 'Gatsby', 'gatsby,react,static', brand('gatsby')),
+      icon('qwik', 'Qwik', 'Qwik', 'qwik,resume,framework', brand('qwik')),
+      icon('lit', 'Lit', 'Lit', 'lit,webcomponents,frontend', brand('lit')),
+      icon('alpine', 'Alpine.js', 'Alpine.js', 'alpine,reactive,lightweight', brand('alpinedotjs')),
+      icon('ember', 'Ember', 'Ember', 'ember,framework,frontend', brand('emberdotjs')),
+      icon('backbone', 'Backbone', 'Backbone', 'backbone,mvc,frontend', brand('backbonedotjs')),
+      icon('meteor', 'Meteor', 'Meteor', 'meteor,fullstack,realtime', brand('meteor')),
+      icon('express', 'Express', 'Express', 'express,node,server', brand('express')),
+      icon('nestjs', 'NestJS', 'NestJS', 'nestjs,node,backend', brand('nestjs')),
+      icon('fastify', 'Fastify', 'Fastify', 'fastify,node,server', brand('fastify')),
+      icon('koa', 'Koa', 'Koa', 'koa,node,server', brand('koa')),
+      icon('nodejs', 'Node.js', 'Node.js', 'node,js,server,runtime', brand('nodedotjs')),
+      icon('deno', 'Deno', 'Deno', 'deno,runtime,ts', brand('deno')),
+      icon('bun', 'Bun', 'Bun', 'bun,runtime,js', brand('bun')),
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────────
   {
     slug: 'dev-tools',
     nameRu: 'Инструменты разработчика',
     nameEn: 'Developer Tools',
-    descRu: 'Git, Docker, Webpack, Vite, npm, Terminal, Figma, VS Code — ежедневный набор.',
-    descEn: 'Git, Docker, Webpack, Vite, npm, Terminal, Figma, VS Code — daily driver set.',
+    descRu: 'Git, GitHub, Docker, VS Code, Vim, ESLint, Webpack, Vite, npm, pnpm и др. — ежедневный набор. Цвет настраивается.',
+    descEn: 'Git, GitHub, Docker, VS Code, Vim, ESLint, Webpack, Vite, npm, pnpm and more — daily driver set. Color editable.',
     category: 'tools',
     style: 'outline',
     tags: 'tool,git,docker,webpack,vite,npm,terminal,figma,vscode',
     isFree: true,
     priceCredits: 10,
     icons: [
-      ['git', 'Git', 'Git', 'git,vcs,version'],
-      ['docker', 'Docker', 'Docker', 'docker,container,devops'],
-      ['webpack', 'Webpack', 'Webpack', 'webpack,bundler,build'],
-      ['vite', 'Vite', 'Vite', 'vite,bundler,fast'],
-      ['npm', 'npm', 'npm', 'npm,package,registry'],
-      ['terminal', 'Terminal', 'Terminal', 'terminal,shell,cli'],
-      ['figma', 'Figma', 'Figma', 'figma,design,ui'],
-      ['vscode', 'VS Code', 'VS Code', 'vscode,editor,ide'],
+      icon('git', 'Git', 'Git', 'git,vcs,version', brand('git')),
+      icon('github', 'GitHub', 'GitHub', 'github,vcs,repo', brand('github')),
+      icon('gitlab', 'GitLab', 'GitLab', 'gitlab,vcs,repo', brand('gitlab')),
+      icon('bitbucket', 'Bitbucket', 'Bitbucket', 'bitbucket,vcs,atlassian', brand('bitbucket')),
+      icon('docker', 'Docker', 'Docker', 'docker,container,devops', brand('docker')),
+      icon('kubernetes', 'Kubernetes', 'Kubernetes', 'k8s,container,orchestration', brand('kubernetes')),
+      icon('podman', 'Podman', 'Podman', 'podman,container,daemonless', brand('podman')),
+      icon('webpack', 'Webpack', 'Webpack', 'webpack,bundler,build', brand('webpack')),
+      icon('vite', 'Vite', 'Vite', 'vite,bundler,fast', brand('vite')),
+      icon('rollup', 'Rollup', 'Rollup', 'rollup,bundler,esm', brand('rollupdotjs')),
+      icon('esbuild', 'esbuild', 'esbuild', 'esbuild,bundler,fast', brand('esbuild')),
+      icon('turbo', 'Turbopack', 'Turbopack', 'turbo,bundler,next', brand('turborepo')),
+      icon('babel', 'Babel', 'Babel', 'babel,transpiler,js', brand('babel')),
+      icon('swc', 'SWC', 'SWC', 'swc,compiler,rust', brand('swc')),
+      icon('postcss', 'PostCSS', 'PostCSS', 'postcss,css,transform', brand('postcss')),
+      icon('tailwind', 'Tailwind CSS', 'Tailwind CSS', 'tailwind,css,utility', brand('tailwindcss')),
+      icon('eslint', 'ESLint', 'ESLint', 'eslint,linter,js', brand('eslint')),
+      icon('prettier', 'Prettier', 'Prettier', 'prettier,formatter,code', brand('prettier')),
+      icon('jest', 'Jest', 'Jest', 'jest,test,js', brand('jest')),
+      icon('vitest', 'Vitest', 'Vitest', 'vitest,test,vite', brand('vitest')),
+      icon('cypress', 'Cypress', 'Cypress', 'cypress,e2e,test', brand('cypress')),
+      icon('playwright', 'Playwright', 'Playwright', 'playwright,e2e,test', outline(lucide('flask-conical'))),
+      icon('storybook', 'Storybook', 'Storybook', 'storybook,ui,components', brand('storybook')),
+      icon('npm', 'npm', 'npm', 'npm,package,registry', brand('npm')),
+      icon('yarn', 'Yarn', 'Yarn', 'yarn,package,node', brand('yarn')),
+      icon('pnpm', 'pnpm', 'pnpm', 'pnpm,package,fast', brand('pnpm')),
+      icon('terminal', 'Terminal', 'Terminal', 'terminal,shell,cli', outline(lucide('square-terminal'))),
+      icon('figma', 'Figma', 'Figma', 'figma,design,ui', brand('figma')),
+      icon('sketch', 'Sketch', 'Sketch', 'sketch,design,ui', brand('sketch')),
+      icon('adobexd', 'Adobe XD', 'Adobe XD', 'xd,design,adobe', outline(lucide('pen-tool'))),
+      icon('vscode', 'VS Code', 'VS Code', 'vscode,editor,ide', brand('vscodium')),
+      icon('neovim', 'Neovim', 'Neovim', 'neovim,editor,vim', brand('neovim')),
+      icon('webstorm', 'WebStorm', 'WebStorm', 'webstorm,ide,jetbrains', brand('webstorm')),
+      icon('postman', 'Postman', 'Postman', 'postman,api,test', brand('postman')),
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────────
   {
     slug: 'web-concepts',
     nameRu: 'Веб-концепты',
     nameEn: 'Web Concepts',
-    descRu: 'Браузер, сервер, API, БД, компонент, layout, responsive, deploy, security — для архитектурных схем.',
-    descEn: 'Browser, server, API, DB, component, layout, responsive, deploy, security — for architecture diagrams.',
+    descRu: 'Браузер, сервер, API, БД, кэш, CDN, WebSocket, OAuth, JWT, микросервисы и др. — для архитектурных схем. Цвет настраивается.',
+    descEn: 'Browser, server, API, DB, cache, CDN, WebSocket, OAuth, JWT, microservices and more — for architecture diagrams. Color editable.',
     category: 'concepts',
     style: 'outline',
-    tags: 'concept,browser,server,api,db,component,layout,responsive,deploy,security',
+    tags: 'concept,browser,server,api,db,cache,oauth,jwt,microservice',
     isFree: true,
     priceCredits: 10,
     icons: [
-      ['browser', 'Браузер', 'Browser', 'browser,web,window'],
-      ['server', 'Сервер', 'Server', 'server,backend,hosting'],
-      ['api', 'API', 'API', 'api,rest,endpoint'],
-      ['database', 'База данных', 'Database', 'database,db,storage'],
-      ['component', 'Компонент', 'Component', 'component,ui,react'],
-      ['layout', 'Layout', 'Layout', 'layout,grid,structure'],
-      ['responsive', 'Responsive', 'Responsive', 'responsive,mobile,adaptive'],
-      ['deploy', 'Deploy', 'Deploy', 'deploy,rocket,release'],
-      ['security', 'Security', 'Security', 'security,shield,lock'],
+      icon('browser', 'Браузер', 'Browser', 'browser,web,window', outline(lucide('app-window'))),
+      icon('server', 'Сервер', 'Server', 'server,backend,hosting', outline(lucide('server'))),
+      icon('api', 'API', 'API', 'api,rest,endpoint', outline(lucide('webhook'))),
+      icon('database', 'База данных', 'Database', 'database,db,storage', outline(lucide('database'))),
+      icon('cache', 'Кэш', 'Cache', 'cache,redis,memory', outline(lucide('hard-drive'))),
+      icon('cdn', 'CDN', 'CDN', 'cdn,edge,network', outline(lucide('globe'))),
+      icon('component', 'Компонент', 'Component', 'component,ui,react', outline(lucide('blocks'))),
+      icon('layout', 'Layout', 'Layout', 'layout,grid,structure', outline(lucide('layout-dashboard'))),
+      icon('responsive', 'Responsive', 'Responsive', 'responsive,mobile,adaptive', outline(lucide('smartphone'))),
+      icon('websocket', 'WebSocket', 'WebSocket', 'websocket,realtime,socket', outline(lucide('radio'))),
+      icon('webhook', 'Webhook', 'Webhook', 'webhook,event,callback', outline(lucide('webhook'))),
+      icon('oauth', 'OAuth', 'OAuth', 'oauth,auth,token', outline(lucide('key-round'))),
+      icon('jwt', 'JWT', 'JWT', 'jwt,token,auth', outline(lucide('shield-check'))),
+      icon('cookie', 'Cookie', 'Cookie', 'cookie,session,browser', outline(lucide('cookie'))),
+      icon('rest', 'REST', 'REST', 'rest,api,http', outline(lucide('share-2'))),
+      icon('graphql', 'GraphQL', 'GraphQL', 'graphql,api,query', brand('graphql')),
+      icon('grpc', 'gRPC', 'gRPC', 'grpc,rpc,protocol', outline(lucide('network'))),
+      icon('microservice', 'Микросервис', 'Microservice', 'microservice,architecture,service', outline(lucide('boxes'))),
+      icon('serverless', 'Serverless', 'Serverless', 'serverless,lambda,cloud', outline(lucide('cloud'))),
+      icon('ssr', 'SSR', 'SSR', 'ssr,server,render', outline(lucide('file-code-2'))),
+      icon('ssg', 'SSG', 'SSG', 'ssg,static,generate', outline(lucide('file-text'))),
+      icon('seo', 'SEO', 'SEO', 'seo,search,google', outline(lucide('search'))),
+      icon('pwa', 'PWA', 'PWA', 'pwa,offline,installable', outline(lucide('smartphone'))),
+      icon('security', 'Security', 'Security', 'security,shield,lock', outline(lucide('shield-check'))),
+      icon('deploy', 'Deploy', 'Deploy', 'deploy,rocket,release', outline(lucide('rocket'))),
+      icon('monitoring', 'Мониторинг', 'Monitoring', 'monitoring,metrics,observability', outline(lucide('activity'))),
+      icon('logging', 'Логи', 'Logging', 'log,logs,observability', outline(lucide('scroll-text'))),
+      icon('cicd', 'CI/CD', 'CI/CD', 'cicd,pipeline,automation', outline(lucide('git-branch'))),
     ],
   },
 ]
@@ -228,8 +291,7 @@ const PACKS = [
 // =====================================================================
 // EMIT TypeScript module
 // =====================================================================
-function emitIconRow([slug, nameRu, nameEn, keywords]) {
-  const svg = svgFor(slug)
+function emitIconRow([slug, nameRu, nameEn, keywords, svg]) {
   return `    { slug: ${JSON.stringify(slug)}, nameRu: ${JSON.stringify(nameRu)}, nameEn: ${JSON.stringify(nameEn)}, keywords: ${JSON.stringify(keywords)}, svg: ${JSON.stringify(svg)} },`
 }
 
@@ -255,14 +317,20 @@ function emitPack(pack) {
 const tsHeader = `/**
  * Shared seed data — packs + icons.
  *
- * Icons sourced from:
- *   - Brand logos: canonical Simple Icons paths (https://simpleicons.org, CC0/MIT)
- *   - Generic concepts: Lucide icons (https://lucide.dev, ISC) — extracted at build time
+ * ALL icons use fill="currentColor" or stroke="currentColor" — NEVER
+ * hardcoded brand colors. The customizer in src/views/customize.tsx
+ * lets users pick any color; renderSvg() in src/lib/svg.ts substitutes
+ * the literal currentColor token with the chosen color.
+ *
+ * Brand logos: simple-icons npm package (https://simpleicons.org, CC0/MIT)
+ * Concept icons: lucide-react (https://lucide.dev, ISC)
  *
  * Consumed by:
  *   - scripts/seed-turso.ts (CLI seeding)
  *   - src/app/api/admin/seed/route.ts (HTTP-triggered seeding on Vercel)
  *   - src/views/home.tsx (preview icons)
+ *
+ * Regenerate via: node scripts/build-seed.js
  */
 export type IconDef = {
   slug: string
@@ -296,5 +364,7 @@ const body = PACKS.map(emitPack).join('\n')
 const output = tsHeader + body + '\n' + tsFooter
 
 fs.writeFileSync('/home/z/my-project/src/lib/packs-data.ts', output)
+const totalIcons = PACKS.reduce((s, p) => s + p.icons.length, 0)
 console.log('Wrote /home/z/my-project/src/lib/packs-data.ts')
-console.log('Packs:', PACKS.length, 'Icons:', PACKS.reduce((s, p) => s + p.icons.length, 0))
+console.log('Packs:', PACKS.length, 'Icons:', totalIcons)
+PACKS.forEach(p => console.log(`  ${p.slug}: ${p.icons.length} icons`))
