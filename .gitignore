@@ -52,3 +52,14 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Local SQLite database (run `prisma db push && tsx scripts/seed.ts` to recreate)
+/db/
+
+# Generated downloads & user uploads
+/download/
+/upload/
+
+# Agent / scratch directories
+/.zscripts/
+/worklog.md
