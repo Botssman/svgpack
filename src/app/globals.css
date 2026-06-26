@@ -248,30 +248,33 @@ html {
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
   /* ════════════════════════════════════════════════════════════
-     Responsive container — stretches full width with fluid
-     horizontal padding that scales with the root font size.
-     Desktop padding targets ~20rem (= 200px @ 1920px).
+     Responsive container — full width with fluid horizontal
+     padding. Per user spec: 36rem per side on wide desktop
+     (= 360px @ 1rem=10px base → 1200px useful @ 1920px viewport).
      ════════════════════════════════════════════════════════════ */
   .container-wide {
     width: 100%;
     max-width: none;
     margin-inline: auto;
-    padding-inline: 1.6rem;        /* mobile-S: ~21px @ 13.27rem-base */
+    padding-inline: 1.6rem;        /* mobile-S */
   }
   @media (min-width: 480px) {
     .container-wide { padding-inline: 2.4rem; }   /* mobile-L */
   }
   @media (min-width: 768px) {
-    .container-wide { padding-inline: 6rem; }     /* tablet ~55px */
+    .container-wide { padding-inline: 6rem; }     /* tablet */
   }
   @media (min-width: 992px) {
-    .container-wide { padding-inline: 12rem; }    /* desktop-sm ~120px */
+    .container-wide { padding-inline: 16rem; }    /* desktop-sm */
   }
-  @media (min-width: 1440px) {
-    .container-wide { padding-inline: 16rem; }    /* desktop ~160px */
+  @media (min-width: 1280px) {
+    .container-wide { padding-inline: 24rem; }    /* desktop */
+  }
+  @media (min-width: 1536px) {
+    .container-wide { padding-inline: 30rem; }    /* desktop-lg */
   }
   @media (min-width: 1920px) {
-    .container-wide { padding-inline: 20rem; }    /* wide desktop 200px */
+    .container-wide { padding-inline: 36rem; }    /* wide desktop = 360px per side */
   }
 
   /* Narrower variant for text-heavy sections (FAQ, account, etc.) */
