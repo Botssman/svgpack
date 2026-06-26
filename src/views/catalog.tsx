@@ -71,7 +71,7 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:py-16">
+    <div className="container-wide py-12 md:py-16">
       {/* Heading */}
       <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">

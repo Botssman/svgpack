@@ -177,7 +177,7 @@ function Header({ nav, itemsCount, user, t }: {
 
   return (
     <header className="sticky top-0 z-40 border-b border-neutral-200/80 bg-white/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="container-wide flex h-16 items-center justify-between gap-4">
         {/* Logo block */}
         <button
           onClick={() => nav({ name: 'home' })}
@@ -369,7 +369,7 @@ function Shell() {
 function Footer({ t, nav }: { t: ReturnType<typeof useI18n>['t']; nav: (v: View) => void }) {
   return (
     <footer className="border-t border-neutral-200 bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="container-wide py-10">
         <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
           <div className="flex items-center gap-2.5">
             <HIcon.Logo />

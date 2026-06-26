@@ -134,7 +134,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
           <div className="absolute left-1/2 top-0 h-[50rem] w-[90rem] -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-100/40 via-white to-transparent blur-3xl" />
         </div>
 
-        <div className="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 md:pb-28 md:pt-24">
+        <div className="container-wide pb-20 pt-16 md:pb-28 md:pt-24">
           <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             {/* Left — text */}
             <div>
@@ -246,7 +246,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
 
       {/* ────────── FEATURES ────────── */}
       <section className="border-t border-neutral-200 bg-neutral-50/60">
-        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+        <div className="container-wide py-20 md:py-28">
           <div className="mx-auto max-w-2xl text-center">
             <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
               {t.features.title}
@@ -269,7 +269,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
 
       {/* ────────── PRICING ────────── */}
       <section className="border-t border-neutral-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+        <div className="container-wide py-20 md:py-28">
           <div className="mx-auto max-w-2xl text-center">
             <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
               {t.pricing.title}
@@ -279,7 +279,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
             </h2>
           </div>
 
-          <div className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-3">
+          <div className="mx-auto mt-14 grid max-w-[120rem] gap-5 md:grid-cols-3">
             <PriceCard
               name={t.pricing.oneTime}
               price={t.pricing.oneTimePrice}
@@ -313,7 +313,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
 
       {/* ────────── FAQ ────────── */}
       <section className="border-t border-neutral-200 bg-neutral-50/60">
-        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 md:py-28">
+        <div className="container-narrow py-20 md:py-28">
           <div className="text-center">
             <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">FAQ</div>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
@@ -332,7 +332,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
 
       {/* ────────── CTA ────────── */}
       <section className="border-t border-neutral-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+        <div className="container-wide py-20 md:py-28">
           <div className="relative overflow-hidden rounded-3xl bg-neutral-900 px-8 py-16 text-center md:px-16 md:py-20">
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute left-1/2 top-0 h-64 w-[60rem] -translate-x-1/2 rounded-full bg-blue-500/20 blur-3xl" />

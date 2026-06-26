@@ -246,4 +246,48 @@ html {
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ════════════════════════════════════════════════════════════
+     Responsive container — stretches full width with fluid
+     horizontal padding that scales with the root font size.
+     Desktop padding targets ~20rem (= 200px @ 1920px).
+     ════════════════════════════════════════════════════════════ */
+  .container-wide {
+    width: 100%;
+    max-width: none;
+    margin-inline: auto;
+    padding-inline: 1.6rem;        /* mobile-S: ~21px @ 13.27rem-base */
+  }
+  @media (min-width: 480px) {
+    .container-wide { padding-inline: 2.4rem; }   /* mobile-L */
+  }
+  @media (min-width: 768px) {
+    .container-wide { padding-inline: 6rem; }     /* tablet ~55px */
+  }
+  @media (min-width: 992px) {
+    .container-wide { padding-inline: 12rem; }    /* desktop-sm ~120px */
+  }
+  @media (min-width: 1440px) {
+    .container-wide { padding-inline: 16rem; }    /* desktop ~160px */
+  }
+  @media (min-width: 1920px) {
+    .container-wide { padding-inline: 20rem; }    /* wide desktop 200px */
+  }
+
+  /* Narrower variant for text-heavy sections (FAQ, account, etc.) */
+  .container-narrow {
+    width: 100%;
+    max-width: 90rem;              /* 900px @ 10px base */
+    margin-inline: auto;
+    padding-inline: 1.6rem;
+  }
+  @media (min-width: 480px) {
+    .container-narrow { padding-inline: 2.4rem; }
+  }
+  @media (min-width: 768px) {
+    .container-narrow { padding-inline: 6rem; }
+  }
+  @media (min-width: 992px) {
+    .container-narrow { padding-inline: 10rem; }
+  }
 }
