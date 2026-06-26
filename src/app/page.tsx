@@ -131,7 +131,7 @@ function LangSwitcher() {
               }`}
             >
               <span className="font-medium">{o.label}</span>
-              <span className="font-mono text-[11px] uppercase tracking-wider text-neutral-400">
+              <span className="font-mono text-[1.1rem] uppercase tracking-wider text-neutral-400">
                 {o.native}
               </span>
             </button>
@@ -185,10 +185,10 @@ function Header({ nav, itemsCount, user, t }: {
         >
           <HIcon.Logo />
           <div className="flex items-baseline gap-1.5">
-            <span className="text-[15px] font-semibold tracking-tight text-neutral-900">
+            <span className="text-[1.5rem] font-semibold tracking-tight text-neutral-900">
               IconPack
             </span>
-            <span className="text-[15px] font-medium tracking-tight text-neutral-400">
+            <span className="text-[1.5rem] font-medium tracking-tight text-neutral-400">
               Hub
             </span>
           </div>
@@ -204,7 +204,7 @@ function Header({ nav, itemsCount, user, t }: {
             >
               {item.label}
               {typeof item.badge === 'number' && item.badge > 0 && (
-                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-neutral-900 px-1 text-[10px] font-semibold text-white">
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-neutral-900 px-1 text-[1rem] font-semibold text-white">
                   {item.badge}
                 </span>
               )}
@@ -258,7 +258,7 @@ function Header({ nav, itemsCount, user, t }: {
                 className="flex items-center gap-2"
               >
                 <HIcon.Logo />
-                <span className="text-[15px] font-semibold tracking-tight">IconPack Hub</span>
+                <span className="text-[1.5rem] font-semibold tracking-tight">IconPack Hub</span>
               </button>
               <button
                 onClick={() => setMobileOpen(false)}
@@ -278,7 +278,7 @@ function Header({ nav, itemsCount, user, t }: {
                 >
                   <span>{item.label}</span>
                   {typeof item.badge === 'number' && item.badge > 0 && (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-neutral-900 px-1.5 text-[11px] font-semibold text-white">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-neutral-900 px-1.5 text-[1.1rem] font-semibold text-white">
                       {item.badge}
                     </span>
                   )}
@@ -287,7 +287,7 @@ function Header({ nav, itemsCount, user, t }: {
             </div>
 
             <div className="mt-6 border-t border-neutral-200 pt-5">
-              <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+              <div className="mb-3 text-[1.1rem] font-semibold uppercase tracking-wider text-neutral-400">
                 {t.common.language}
               </div>
               <div className="flex gap-2">

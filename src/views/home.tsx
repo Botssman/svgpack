@@ -131,7 +131,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
       <section className="relative overflow-hidden">
         {/* Subtle background glow */}
         <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute left-1/2 top-0 h-[500px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-100/40 via-white to-transparent blur-3xl" />
+          <div className="absolute left-1/2 top-0 h-[50rem] w-[90rem] -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-100/40 via-white to-transparent blur-3xl" />
         </div>
 
         <div className="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 md:pb-28 md:pt-24">
@@ -143,7 +143,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
                 {t.hero.badge}
               </div>
 
-              <h1 className="mt-6 text-[40px] font-bold leading-[1.05] tracking-tight text-neutral-900 sm:text-[48px] md:text-[56px] lg:text-[64px]">
+              <h1 className="mt-6 text-[4rem] font-bold leading-[1.05] tracking-tight text-neutral-900 sm:text-[4.8rem] md:text-[5.6rem] lg:text-[6.4rem]">
                 {t.hero.title}
                 <br />
                 <span className="text-neutral-400">{t.hero.titleAccent}</span>
@@ -235,8 +235,8 @@ export function Home({ nav }: { nav: (v: View) => void }) {
                   <Icon.Copy />
                 </div>
                 <div>
-                  <div className="text-[11px] font-medium text-neutral-900">Copy SVG</div>
-                  <div className="text-[10px] text-neutral-500">{t.features.f5Title.toLowerCase()}</div>
+                  <div className="text-[1.1rem] font-medium text-neutral-900">Copy SVG</div>
+                  <div className="text-[1rem] text-neutral-500">{t.features.f5Title.toLowerCase()}</div>
                 </div>
               </div>
             </div>
@@ -335,7 +335,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
           <div className="relative overflow-hidden rounded-3xl bg-neutral-900 px-8 py-16 text-center md:px-16 md:py-20">
             <div className="pointer-events-none absolute inset-0">
-              <div className="absolute left-1/2 top-0 h-64 w-[600px] -translate-x-1/2 rounded-full bg-blue-500/20 blur-3xl" />
+              <div className="absolute left-1/2 top-0 h-64 w-[60rem] -translate-x-1/2 rounded-full bg-blue-500/20 blur-3xl" />
             </div>
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-bold tracking-tight text-white md:text-4xl">

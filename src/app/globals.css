@@ -3,6 +3,43 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ──────────────────────────────────────────────────────────────
+   RESPONSIVE ROOT FONT SIZE — "rubber band" system.
+   1rem scales with viewport so the whole layout breathes.
+
+   Desktop (≥992px):  0.521vw  → 1rem = 10px @ 1920px
+   Tablet  (≤991px):  0.8vw    → 1rem ≈ 7.93px @ 991px
+   Mobile-L (≤767px): 1.2vw    → 1rem ≈ 9.2px @ 767px
+   Mobile-S (≤479px): 2.77vw   → 1rem ≈ 13.27px @ 479px
+   ────────────────────────────────────────────────────────────── */
+html {
+  font-size: 0.521vw;
+}
+
+@media (max-width: 991px) {
+  html {
+    font-size: 0.8vw;
+  }
+}
+
+@media (max-width: 767px) {
+  html {
+    font-size: 1.2vw;
+  }
+}
+
+@media (max-width: 479px) {
+  html {
+    font-size: 2.77vw;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Tailwind v4 theme tokens — recalibrated so that
+   at desktop (1rem = 10px) all utilities yield the same pixel
+   values they used to. As 1rem shrinks/grows on smaller viewports,
+   every spacing, font and radius scales together.
+   ────────────────────────────────────────────────────────────── */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -37,15 +74,56 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Spacing base — p-1 = 4px on desktop (was 0.25rem × 16px).
+     With new base (1rem=10px), need 0.4rem to get 4px.
+     Then p-4 = 16px, p-6 = 24px, gap-8 = 32px etc. */
+  --spacing: 0.4rem;
+
+  /* Radii — recalibrated for 1rem = 10px base */
+  --radius-sm: 0.2rem;   /* 2px */
+  --radius-md: 0.6rem;   /* 6px */
+  --radius-lg: 0.8rem;   /* 8px */
+  --radius-xl: 1.2rem;   /* 12px */
+
+  /* Font sizes — recalibrated for 1rem = 10px base.
+     Multiplied original rem values by 1.6 so desktop pixel
+     values are unchanged. As viewport shrinks, fonts scale
+     smoothly with the root font-size. */
+  --text-xs:    1.2rem;   /* 12px */
+  --text-sm:    1.4rem;   /* 14px */
+  --text-base:  1.6rem;   /* 16px */
+  --text-lg:    1.8rem;   /* 18px */
+  --text-xl:    2rem;     /* 20px */
+  --text-2xl:   2.4rem;   /* 24px */
+  --text-3xl:   3rem;     /* 30px */
+  --text-4xl:   3.6rem;   /* 36px */
+  --text-5xl:   4.8rem;   /* 48px */
+  --text-6xl:   6rem;     /* 60px */
+  --text-7xl:   7.2rem;   /* 72px */
+  --text-8xl:   9.6rem;   /* 96px */
+  --text-9xl:   12.8rem;  /* 128px */
+
+  /* Line heights paired with text sizes (Tailwind v4 reads
+     --text-*--line-height alongside --text-*).
+     Using unitless values so they scale with the font size. */
+  --text-xs--line-height: 1.6;
+  --text-sm--line-height: 1.5;
+  --text-base--line-height: 1.6;
+  --text-lg--line-height: 1.55;
+  --text-xl--line-height: 1.5;
+  --text-2xl--line-height: 1.4;
+  --text-3xl--line-height: 1.3;
+  --text-4xl--line-height: 1.25;
+  --text-5xl--line-height: 1.2;
+  --text-6xl--line-height: 1.1;
+  --text-7xl--line-height: 1.05;
+  --text-8xl--line-height: 1.05;
+  --text-9xl--line-height: 1;
 }
 
 :root {
-  --radius: 0.625rem;
-  /* Neutral palette — slightly warmer than slate, like modern landing pages */
+  /* Neutral palette — slightly warmer than slate */
   --background: #ffffff;
   --foreground: #0a0a0a;
   --card: #ffffff;
@@ -129,11 +207,15 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
+  /* Disable browser default min font-size on mobile by forcing the
+     calculated root size */
+  body {
+    font-size: var(--text-base);
+  }
   ::selection {
     background: #0a0a0a;
     color: #ffffff;
   }
-  /* Better focus rings */
   :focus-visible {
     outline: 2px solid #0a0a0a;
     outline-offset: 2px;
@@ -157,11 +239,9 @@
       0 1px 2px rgba(0, 0, 0, 0.04),
       0 12px 32px rgba(0, 0, 0, 0.08);
   }
-  /* Subtle border highlight used on hover for cards */
   .ring-hover {
     box-shadow: 0 0 0 1px rgba(10, 10, 10, 0.06);
   }
-  /* Hide scrollbar utility */
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
