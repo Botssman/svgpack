@@ -1,7 +1,7 @@
 'use client'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
-import { View } from '@/app/page'
+import { View } from '@/lib/navigation'
 import { PACKS } from '@/lib/packs-data'
 
 /* ──────────────────────────────────────────────────────────────

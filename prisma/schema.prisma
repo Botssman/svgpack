@@ -11,14 +11,17 @@ datasource db {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  name         String?
-  passwordHash String?
-  role         String         @default("user") // "user" | "admin"
-  credits      Int            @default(0)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id                 String         @id @default(cuid())
+  email              String         @unique
+  name               String?
+  passwordHash       String?
+  role               String         @default("user") // "user" | "admin"
+  credits            Int            @default(0)
+  // Free plan tracking: 3 pack builds per month
+  freeBuildsUsed     Int            @default(0)
+  freeBuildsResetAt  DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   subscriptions Subscription[]
   purchases     Purchase[]
@@ -33,11 +36,18 @@ model Pack {
   nameEn      String
   descRu      String
   descEn      String
-  category    String   // "languages" | "frameworks" | "tools" | "concepts"
+  category    String   // "web" | "medical" | "realestate" | "law"
   style       String   @default("outline") // "outline" | "filled" | "duotone"
   tags        String   @default("") // comma-separated
   priceCredits Int     @default(10)
   isFree      Boolean  @default(true)
+  // SEO fields (nullable — populated later via admin)
+  seoTitleRu  String?
+  seoTitleEn  String?
+  seoDescRu   String?
+  seoDescEn   String?
+  seoTextRu   String?
+  seoTextEn   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

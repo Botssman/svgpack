@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useBuild } from '@/lib/build-store'
-import { View } from '@/app/page'
+import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 
 type Icon = { id: string; slug: string; nameRu: string; nameEn: string; keywords: string; svg: string; viewBox: string }

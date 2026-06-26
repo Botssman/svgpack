@@ -1,7 +1,7 @@
 'use client'
 import { useI18n } from '@/lib/i18n'
 import { useUser } from '@/lib/user-store'
-import { View } from '@/app/page'
+import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 
 export function Billing({ nav }: { nav: (v: View) => void }) {

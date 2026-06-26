@@ -2,7 +2,7 @@
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useBuild } from '@/lib/build-store'
-import { View } from '@/app/page'
+import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 
 export function Builder({ nav }: { nav: (v: View) => void }) {

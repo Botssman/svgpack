@@ -1,6 +1,32 @@
 export type Lang = 'ru' | 'en'
 
-export const dict = {
+/**
+ * Shape of one language's dictionary.
+ *
+ * Declared explicitly (instead of `typeof dict.ru`) so that `dict.ru` and
+ * `dict.en` are both assignable to `Dict` — `as const` would otherwise make
+ * the literal types ("Главная" vs "Home") incompatible and break
+ * `getDict(lang): Dict` in i18n-server.ts.
+ */
+export type Dict = {
+  nav: Record<'home' | 'catalog' | 'builder' | 'billing' | 'admin' | 'account', string>
+  hero: Record<string, string>
+  features: Record<string, string>
+  pricing: Record<string, string>
+  footer: Record<string, string>
+  faq: Record<string, string>
+  catalog: Record<string, string>
+  packView: Record<string, string>
+  customize: Record<string, string>
+  builder: Record<string, string>
+  account: Record<string, string>
+  admin: Record<string, string>
+  billing: Record<string, string>
+  common: Record<string, string>
+  toast: Record<string, string>
+}
+
+export const dict: Record<Lang, Dict> = {
   ru: {
     nav: {
       home: 'Главная',
@@ -42,29 +68,49 @@ export const dict = {
     },
     pricing: {
       title: 'Тарифы',
-      subtitle: 'Платите как удобно — разово, подпиской или кредитами',
+      subtitle: 'Бесплатно навсегда + платные опции для профи',
+      free: 'Бесплатно',
+      freePrice: '0 ₽',
+      freeDesc: 'Попробуйте все возможности без карты',
+      freeF1: 'Скачивание всех паков в исходном виде',
+      freeF2: '3 сборки своего пака в месяц',
+      freeF3: '10 кредитов в подарок при регистрации',
+      freeCta: 'Начать бесплатно',
       oneTime: 'Разово',
-      oneTimePrice: 'от 0.49 $',
+      oneTimePrice: 'от 25 ₽',
       oneTimeDesc: 'Покупка кастомизации одного пака или иконки навсегда',
-      oneTimeF1: '1 пак = 0.99 $',
-      oneTimeF2: '1 иконка = 0.49 $',
-      oneTimeF3: 'Хранится в кабинете',
+      oneTimeF1: '1 пак = 149 ₽',
+      oneTimeF2: '1 иконка = 25 ₽',
+      oneTimeF3: 'Хранится в кабинете навсегда',
       oneTimeCta: 'Купить разово',
       sub: 'Подписка',
-      subPrice: '4.99 $/мес',
+      subPrice: '200 ₽/мес',
       subDesc: 'Безлимитная кастомизация всех паков и иконок',
       subF1: 'Все паки без ограничений',
       subF2: 'Безлимит сборки своих паков',
       subF3: 'Приоритет новых паков',
       subCta: 'Подписаться',
       credits: 'Кредиты',
-      creditsPrice: '100 кр. = 4.99 $',
+      creditsPrice: '100 кр. = 149 ₽',
       creditsDesc: 'Платите по факту: 1 кастомизация = 5 кредитов',
       creditsF1: 'Не сгорают',
-      creditsF2: '10 кр. в подарок при регистрации',
+      creditsF2: '20 кастомизаций за 149 ₽',
       creditsF3: 'Подходит для редких задач',
       creditsCta: 'Купить кредиты',
       note: 'Демо-режим: оплата заглушкой, реальная интеграция появится позже.',
+      detailsLink: 'Подробнее о тарифах →',
+    },
+    footer: {
+      tagline: 'SVG-иконки для современных интерфейсов',
+      productTitle: 'Продукт',
+      resourcesTitle: 'Ресурсы',
+      companyTitle: 'Компания',
+      license: 'Лицензия MIT',
+      contacts: 'Контакты',
+      catalog: 'Каталог',
+      builder: 'Собрать пак',
+      pricing: 'Тарифы',
+      copyright: '© 2026 SVG Stack Hub',
     },
     faq: {
       title: 'Частые вопросы',
@@ -265,29 +311,49 @@ export const dict = {
     },
     pricing: {
       title: 'Pricing',
-      subtitle: 'Pay your way — one-time, subscription, or credits',
+      subtitle: 'Free forever + paid options for pros',
+      free: 'Free',
+      freePrice: '0 ₽',
+      freeDesc: 'Try every feature, no card required',
+      freeF1: 'Download all packs in original form',
+      freeF2: '3 pack builds per month',
+      freeF3: '10 credits gift on signup',
+      freeCta: 'Start free',
       oneTime: 'One-time',
-      oneTimePrice: 'from $0.49',
+      oneTimePrice: 'from 25 ₽',
       oneTimeDesc: 'Buy customization of one pack or icon forever',
-      oneTimeF1: '1 pack = $0.99',
-      oneTimeF2: '1 icon = $0.49',
-      oneTimeF3: 'Stored in account',
+      oneTimeF1: '1 pack = 149 ₽',
+      oneTimeF2: '1 icon = 25 ₽',
+      oneTimeF3: 'Stored in account forever',
       oneTimeCta: 'Buy one-time',
       sub: 'Subscription',
-      subPrice: '$4.99/mo',
+      subPrice: '200 ₽/mo',
       subDesc: 'Unlimited customization of all packs and icons',
       subF1: 'All packs unlimited',
       subF2: 'Unlimited pack builder',
       subF3: 'Priority new packs',
       subCta: 'Subscribe',
       credits: 'Credits',
-      creditsPrice: '100 cr = $4.99',
+      creditsPrice: '100 cr = 149 ₽',
       creditsDesc: 'Pay as you go: 1 customization = 5 credits',
       creditsF1: 'Never expire',
-      creditsF2: '10 cr gift on signup',
+      creditsF2: '20 customizations for 149 ₽',
       creditsF3: 'For occasional tasks',
       creditsCta: 'Buy credits',
       note: 'Demo mode: mock payment, real integration coming later.',
+      detailsLink: 'More about pricing →',
+    },
+    footer: {
+      tagline: 'SVG icons for modern interfaces',
+      productTitle: 'Product',
+      resourcesTitle: 'Resources',
+      companyTitle: 'Company',
+      license: 'MIT License',
+      contacts: 'Contacts',
+      catalog: 'Catalog',
+      builder: 'Build Pack',
+      pricing: 'Pricing',
+      copyright: '© 2026 SVG Stack Hub',
     },
     faq: {
       title: 'FAQ',
@@ -447,6 +513,4 @@ export const dict = {
       error: 'Something went wrong',
     },
   },
-} as const
-
-export type Dict = typeof dict.ru
+}

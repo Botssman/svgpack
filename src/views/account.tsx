@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useUser } from '@/lib/user-store'
-import { View } from '@/app/page'
+import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 
 export function Account({ nav }: { nav: (v: View) => void }) {
