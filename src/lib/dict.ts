@@ -210,6 +210,8 @@ export const dict = {
     common: {
       langSwitch: 'RU/EN',
       login: 'Войти',
+      ctaStart: 'Начать',
+      language: 'Язык',
       demoMode: 'Демо-режим',
     },
     toast: {
@@ -431,6 +433,8 @@ export const dict = {
     common: {
       langSwitch: 'RU/EN',
       login: 'Log in',
+      ctaStart: 'Get started',
+      language: 'Language',
       demoMode: 'Demo mode',
     },
     toast: {

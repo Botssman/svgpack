@@ -71,106 +71,141 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t.catalog.title}</h1>
-        <p className="mt-2 text-slate-600">{t.catalog.subtitle}</p>
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 md:py-16">
+      {/* Heading */}
+      <div className="mb-10">
+        <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+          Catalog
+        </div>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
+          {t.catalog.title}
+        </h1>
+        <p className="mt-2 text-neutral-600">{t.catalog.subtitle}</p>
       </div>
 
       {/* Search + filters */}
       <div className="mb-8 space-y-4">
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={t.catalog.searchPlaceholder}
-          className="w-full px-4 py-2.5 rounded-md border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-300"
-        />
-        <div className="flex flex-wrap gap-2">
+        <div className="relative">
+          <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M21 21l-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder={t.catalog.searchPlaceholder}
+            className="w-full rounded-xl border border-neutral-200 bg-white py-3 pl-11 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 transition-colors focus:border-neutral-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/5"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {categories.map((c) => (
             <button
               key={c.id}
               onClick={() => setCategory(c.id)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
                 category === c.id
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? 'bg-neutral-900 text-white'
+                  : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
               }`}
             >
               {c.label}
             </button>
           ))}
         </div>
-        <div className="text-sm text-slate-500">
-          {loading ? '...' : `${packs.length} · ${totalIcons} ${t.catalog.iconsCount}`}
+        <div className="text-sm text-neutral-500">
+          {loading ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="h-1 w-1 animate-pulse rounded-full bg-neutral-400" />
+              ...
+            </span>
+          ) : (
+            <span>
+              <span className="font-semibold text-neutral-900">{packs.length}</span>
+              {' '}/{' '}
+              <span className="font-semibold text-neutral-900">{totalIcons}</span>{' '}
+              {t.catalog.iconsCount}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Packs grid */}
       {loading ? (
-        <div className="grid md:grid-cols-2 gap-6">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-64 rounded-xl bg-slate-100 animate-pulse" />
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="h-64 rounded-2xl bg-neutral-100 animate-pulse" />
           ))}
         </div>
       ) : error ? (
-        <div className="text-center py-12 rounded-xl border border-red-200 bg-red-50">
-          <div className="text-red-700 font-medium mb-2">Не удалось загрузить каталог</div>
-          <div className="text-xs text-red-600 font-mono mb-4 max-w-2xl mx-auto break-all">{error}</div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 py-12 text-center">
+          <div className="mb-2 font-medium text-red-700">Не удалось загрузить каталог</div>
+          <div className="mx-auto mb-4 max-w-2xl break-all font-mono text-xs text-red-600">{error}</div>
           <button
             onClick={() => setRetryCount(n => n + 1)}
-            className="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
+            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
           >
             Повторить
           </button>
-          <div className="mt-6 text-xs text-slate-500">
-            Диагностика: <a href="/api/health" target="_blank" className="underline">/api/health</a>
+          <div className="mt-6 text-xs text-neutral-500">
+            Диагностика:{' '}
+            <a href="/api/health" target="_blank" className="underline">/api/health</a>
             {' · '}
             <a href="/api/packs" target="_blank" className="underline">/api/packs</a>
           </div>
         </div>
       ) : packs.length === 0 ? (
-        <div className="text-center py-20 text-slate-500">
-          {t.catalog.noResults}
-        </div>
+        <div className="py-20 text-center text-neutral-500">{t.catalog.noResults}</div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {packs.map((pack) => (
-            <div key={pack.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden hover:border-slate-300 transition-colors">
+            <div
+              key={pack.id}
+              className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-lift hover:border-neutral-300"
+            >
               {/* Icon preview grid */}
               <button
                 onClick={() => nav({ name: 'pack', slug: pack.slug })}
-                className="w-full p-5 grid grid-cols-6 gap-2 bg-slate-50 hover:bg-slate-100 transition-colors"
+                className="grid w-full grid-cols-6 gap-2 bg-neutral-50/60 p-5 transition-colors hover:bg-neutral-100"
               >
                 {pack.icons.slice(0, 12).map((ic) => (
-                  <div key={ic.id} className="aspect-square flex items-center justify-center rounded-md bg-white border border-slate-100">
-                    <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={20} />
+                  <div
+                    key={ic.id}
+                    className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
+                  >
+                    <IconView innerSvg={ic.svg} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={20} />
                   </div>
                 ))}
               </button>
               <div className="p-5">
-                <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-slate-900">{lang === 'ru' ? pack.nameRu : pack.nameEn}</h3>
-                    <div className="text-xs text-slate-500 mt-0.5">{pack.category} · {pack.style}</div>
+                    <h3 className="font-semibold text-neutral-900">
+                      {lang === 'ru' ? pack.nameRu : pack.nameEn}
+                    </h3>
+                    <div className="mt-0.5 text-xs text-neutral-500">
+                      <span className="font-mono">{pack.category}</span>
+                      {' · '}
+                      <span className="font-mono">{pack.style}</span>
+                    </div>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     {pack.icons.length} {t.catalog.iconsCount}
                   </span>
                 </div>
-                <p className="text-sm text-slate-600 line-clamp-2 mb-4">
+                <p className="mb-4 line-clamp-2 text-sm text-neutral-600">
                   {lang === 'ru' ? pack.descRu : pack.descEn}
                 </p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => nav({ name: 'pack', slug: pack.slug })}
-                    className="flex-1 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors"
+                    className="flex-1 rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
                   >
                     {t.catalog.viewPack}
                   </button>
                   <button
                     onClick={() => handleDownload(pack.slug)}
-                    className="px-3 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
+                    className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"
                   >
                     {t.catalog.downloadZip}
                   </button>

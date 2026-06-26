@@ -4,8 +4,91 @@ import { IconView } from '@/components/icon-view'
 import { View } from '@/app/page'
 import { PACKS } from '@/lib/packs-data'
 
-// Build slug -> svg map from canonical pack data.
-// For home-page-only icons (copy, card, palette, globe) we use Lucide paths directly.
+/* ──────────────────────────────────────────────────────────────
+   Local inline icons (consistent 1.5px stroke).
+   ────────────────────────────────────────────────────────────── */
+const Icon = {
+  Arrow: ({ className = 'h-4 w-4' }: { className?: string }) => (
+    <svg viewBox="0 0 16 16" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 8h10M9 4l4 4-4 4" />
+    </svg>
+  ),
+  Check: () => (
+    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 8.5l3.2 3.2L13 5" />
+    </svg>
+  ),
+  Plus: () => (
+    <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  ),
+  Sparkle: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />
+    </svg>
+  ),
+  Layers: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 17l9 5 9-5" />
+    </svg>
+  ),
+  Palette: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3a9 9 0 100 18c1.5 0 2-1 2-2s-1-1.5-1-2.5 1-1.5 2-1.5h2a4 4 0 004-4 8 8 0 00-9-8z" />
+      <circle cx="7.5" cy="10.5" r="1" fill="currentColor" />
+      <circle cx="12" cy="7.5" r="1" fill="currentColor" />
+      <circle cx="16.5" cy="10.5" r="1" fill="currentColor" />
+    </svg>
+  ),
+  Download: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+    </svg>
+  ),
+  Code: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 6L3 12l5 6M16 6l5 6-5 6M14 4l-4 16" />
+    </svg>
+  ),
+  Copy: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M4 16V6a2 2 0 012-2h10" />
+    </svg>
+  ),
+  Globe: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
+    </svg>
+  ),
+  Shield: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" />
+    </svg>
+  ),
+  Browser: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M7 6.5h.01M10 6.5h.01" />
+    </svg>
+  ),
+  Component: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 9h18M9 21V9" />
+    </svg>
+  ),
+  Card: () => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <path d="M2 10h20" />
+    </svg>
+  ),
+}
+
+/* Build slug -> svg map from canonical pack data */
 function svgBySlug(slug: string): string {
   for (const pack of PACKS) {
     const found = pack.icons.find((i) => i.slug === slug)
@@ -31,101 +114,172 @@ const ICONS: Record<string, string> = {
   server: svgBySlug('server'),
   api: svgBySlug('api'),
   database: svgBySlug('database'),
-  // Lucide paths for home-only icons (ISC license)
-  component: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/>',
-  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
-  card: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
-  palette: '<circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
-  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
 }
+
+/* Pack theme colors for the hero preview cards */
+const PACK_THEMES = [
+  { name: 'Frontend essentials', count: 12, icons: ['js', 'ts', 'react', 'vue'] },
+  { name: 'Backend tools', count: 7, icons: ['node', 'docker', 'git', 'api'] },
+] as const
 
 export function Home({ nav }: { nav: (v: View) => void }) {
   const { t } = useI18n()
 
   return (
     <div>
-      {/* HERO */}
-      <section className="relative overflow-hidden border-b border-slate-200">
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-100 rounded-full blur-3xl opacity-50" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-amber-100 rounded-full blur-3xl opacity-50" />
+      {/* ────────── HERO ────────── */}
+      <section className="relative overflow-hidden">
+        {/* Subtle background glow */}
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute left-1/2 top-0 h-[500px] w-[900px] -translate-x-1/2 rounded-full bg-gradient-to-b from-blue-100/40 via-white to-transparent blur-3xl" />
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+
+        <div className="mx-auto max-w-7xl px-4 pb-20 pt-16 sm:px-6 md:pb-28 md:pt-24">
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+            {/* Left — text */}
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 mb-6">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-600 shadow-sm">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-green-500" />
                 {t.hero.badge}
               </div>
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 leading-[1.05]">
-                {t.hero.title}{' '}
-                <span className="text-slate-400">{t.hero.titleAccent}</span>
+
+              <h1 className="mt-6 text-[40px] font-bold leading-[1.05] tracking-tight text-neutral-900 sm:text-[48px] md:text-[56px] lg:text-[64px]">
+                {t.hero.title}
+                <br />
+                <span className="text-neutral-400">{t.hero.titleAccent}</span>
               </h1>
-              <p className="mt-6 text-lg text-slate-600 max-w-xl leading-relaxed">
+
+              <p className="mt-6 max-w-lg text-lg leading-relaxed text-neutral-600">
                 {t.hero.subtitle}
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
+
+              <div className="mt-8 flex flex-wrap items-center gap-3">
                 <button
                   onClick={() => nav({ name: 'catalog' })}
-                  className="px-5 py-2.5 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-5 py-3 text-sm font-medium text-white shadow-soft transition-all hover:bg-neutral-700 hover:shadow-lift"
                 >
                   {t.hero.ctaPrimary}
+                  <Icon.Arrow />
                 </button>
                 <button
                   onClick={() => nav({ name: 'builder' })}
-                  className="px-5 py-2.5 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-5 py-3 text-sm font-medium text-neutral-900 shadow-sm transition-colors hover:bg-neutral-50"
                 >
                   {t.hero.ctaSecondary}
                 </button>
               </div>
-              <div className="mt-10 grid grid-cols-3 gap-4 max-w-md">
+
+              {/* Mini stats */}
+              <div className="mt-12 flex flex-wrap gap-8">
                 <Stat value={t.hero.stat1} label={t.hero.stat1Label} />
                 <Stat value={t.hero.stat2} label={t.hero.stat2Label} />
                 <Stat value={t.hero.stat3} label={t.hero.stat3Label} />
               </div>
             </div>
 
-            {/* Icon grid preview */}
-            <div className="grid grid-cols-4 gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-sm">
-              {PREVIEW_ICONS.map((ic, i) => (
-                <div
-                  key={i}
-                  className="aspect-square flex items-center justify-center bg-slate-50 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-100 transition-all cursor-pointer group"
-                >
-                  <IconView innerSvg={ic} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={28} className="group-hover:scale-110 transition-transform" />
+            {/* Right — icon grid card */}
+            <div className="relative">
+              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-lift">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wider text-neutral-400">
+                      Popular
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-neutral-900">
+                      {PACK_THEMES[0].name}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-600">
+                    {PACK_THEMES[0].count} icons
+                  </div>
                 </div>
-              ))}
+
+                <div className="mt-5 grid grid-cols-4 gap-3">
+                  {PREVIEW_ICONS.map((ic, i) => (
+                    <div
+                      key={i}
+                      className="group flex aspect-square items-center justify-center rounded-xl border border-neutral-100 bg-neutral-50/50 transition-colors hover:border-neutral-200 hover:bg-white"
+                    >
+                      <IconView
+                        innerSvg={ic}
+                        cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }}
+                        size={28}
+                        className="transition-transform group-hover:scale-110"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex items-center justify-between border-t border-neutral-100 pt-4">
+                  <div className="flex -space-x-2">
+                    {PREVIEW_ICONS.slice(0, 3).map((ic, i) => (
+                      <div key={i} className="rounded-full bg-white p-1 ring-2 ring-white">
+                        <div className="h-6 w-6">
+                          <IconView innerSvg={ic} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={24} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => nav({ name: 'catalog' })}
+                    className="text-xs font-medium text-neutral-900 hover:text-neutral-600"
+                  >
+                    {t.packView.customizePack} →
+                  </button>
+                </div>
+              </div>
+
+              {/* Floating preview chip */}
+              <div className="absolute -bottom-4 -left-4 hidden items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 shadow-lift sm:flex">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100">
+                  <Icon.Copy />
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium text-neutral-900">Copy SVG</div>
+                  <div className="text-[10px] text-neutral-500">{t.features.f5Title.toLowerCase()}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* FEATURES */}
-      <section className="border-b border-slate-200 py-16 sm:py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">{t.features.title}</h2>
-            <p className="mt-3 text-slate-600">{t.features.subtitle}</p>
+      {/* ────────── FEATURES ────────── */}
+      <section className="border-t border-neutral-200 bg-neutral-50/60">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+          <div className="mx-auto max-w-2xl text-center">
+            <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+              {t.features.title}
+            </div>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
+              {t.features.subtitle}
+            </h2>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Feature icon={ICONS.browser} title={t.features.f1Title} desc={t.features.f1Desc} />
-            <Feature icon={ICONS.palette} title={t.features.f2Title} desc={t.features.f2Desc} />
-            <Feature icon={ICONS.card} title={t.features.f3Title} desc={t.features.f3Desc} />
-            <Feature icon={ICONS.component} title={t.features.f4Title} desc={t.features.f4Desc} />
-            <Feature icon={ICONS.copy} title={t.features.f5Title} desc={t.features.f5Desc} />
-            <Feature icon={ICONS.globe} title={t.features.f6Title} desc={t.features.f6Desc} />
+
+          <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            <Feature icon={<Icon.Browser />} title={t.features.f1Title} desc={t.features.f1Desc} />
+            <Feature icon={<Icon.Palette />} title={t.features.f2Title} desc={t.features.f2Desc} />
+            <Feature icon={<Icon.Card />} title={t.features.f3Title} desc={t.features.f3Desc} />
+            <Feature icon={<Icon.Component />} title={t.features.f4Title} desc={t.features.f4Desc} />
+            <Feature icon={<Icon.Copy />} title={t.features.f5Title} desc={t.features.f5Desc} />
+            <Feature icon={<Icon.Globe />} title={t.features.f6Title} desc={t.features.f6Desc} />
           </div>
         </div>
       </section>
 
-      {/* PRICING */}
-      <section className="border-b border-slate-200 py-16 sm:py-24 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">{t.pricing.title}</h2>
-            <p className="mt-3 text-slate-600">{t.pricing.subtitle}</p>
+      {/* ────────── PRICING ────────── */}
+      <section className="border-t border-neutral-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+          <div className="mx-auto max-w-2xl text-center">
+            <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+              {t.pricing.title}
+            </div>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
+              {t.pricing.subtitle}
+            </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+
+          <div className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-3">
             <PriceCard
               name={t.pricing.oneTime}
               price={t.pricing.oneTimePrice}
@@ -152,15 +306,21 @@ export function Home({ nav }: { nav: (v: View) => void }) {
               onClick={() => nav({ name: 'billing' })}
             />
           </div>
-          <p className="text-center mt-6 text-xs text-slate-500">{t.pricing.note}</p>
+
+          <p className="mt-8 text-center text-xs text-neutral-500">{t.pricing.note}</p>
         </div>
       </section>
 
-      {/* FAQ */}
-      <section className="py-16 sm:py-24">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mb-8 text-center">{t.faq.title}</h2>
-          <div className="space-y-4">
+      {/* ────────── FAQ ────────── */}
+      <section className="border-t border-neutral-200 bg-neutral-50/60">
+        <div className="mx-auto max-w-3xl px-4 py-20 sm:px-6 md:py-28">
+          <div className="text-center">
+            <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">FAQ</div>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
+              {t.faq.title}
+            </h2>
+          </div>
+          <div className="mt-12 space-y-3">
             <Faq q={t.faq.q1} a={t.faq.a1} />
             <Faq q={t.faq.q2} a={t.faq.a2} />
             <Faq q={t.faq.q3} a={t.faq.a3} />
@@ -169,27 +329,64 @@ export function Home({ nav }: { nav: (v: View) => void }) {
           </div>
         </div>
       </section>
+
+      {/* ────────── CTA ────────── */}
+      <section className="border-t border-neutral-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+          <div className="relative overflow-hidden rounded-3xl bg-neutral-900 px-8 py-16 text-center md:px-16 md:py-20">
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute left-1/2 top-0 h-64 w-[600px] -translate-x-1/2 rounded-full bg-blue-500/20 blur-3xl" />
+            </div>
+            <div className="relative">
+              <h2 className="mx-auto max-w-2xl text-3xl font-bold tracking-tight text-white md:text-4xl">
+                {t.account.credits} — 10 / {t.common.ctaStart.toLowerCase()}
+              </h2>
+              <p className="mx-auto mt-4 max-w-lg text-neutral-400">
+                {t.features.subtitle}
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={() => nav({ name: 'account' })}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-100"
+                >
+                  {t.common.ctaStart}
+                  <Icon.Arrow />
+                </button>
+                <button
+                  onClick={() => nav({ name: 'catalog' })}
+                  className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-800"
+                >
+                  {t.hero.ctaPrimary}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Sub-components
+   ────────────────────────────────────────────────────────────── */
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="text-2xl font-bold text-slate-900">{value}</div>
-      <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+      <div className="text-3xl font-bold tracking-tight text-neutral-900">{value}</div>
+      <div className="mt-1 text-sm text-neutral-500">{label}</div>
     </div>
   )
 }
 
-function Feature({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+function Feature({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
   return (
-    <div className="p-6 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors">
-      <div className="w-10 h-10 rounded-md bg-slate-900 text-white flex items-center justify-center mb-4">
-        <IconView innerSvg={icon} cfg={{ color: '#FFFFFF', strokeWidth: 1.75 }} size={20} />
+    <div className="group rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lift hover:border-neutral-300">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-900 text-white transition-colors group-hover:bg-blue-600">
+        {icon}
       </div>
-      <h3 className="font-semibold text-slate-900 mb-2">{title}</h3>
-      <p className="text-sm text-slate-600 leading-relaxed">{desc}</p>
+      <h3 className="mt-5 text-lg font-semibold text-neutral-900">{title}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-neutral-600">{desc}</p>
     </div>
   )
 }
@@ -213,32 +410,48 @@ function PriceCard({
 }) {
   return (
     <div
-      className={`p-6 rounded-2xl border bg-white flex flex-col ${
-        highlighted ? 'border-slate-900 shadow-lg ring-1 ring-slate-900/5' : 'border-slate-200'
+      className={`relative flex flex-col rounded-2xl p-7 ${
+        highlighted
+          ? 'border-2 border-neutral-900 bg-neutral-900 text-white shadow-lift'
+          : 'border border-neutral-200 bg-white'
       }`}
     >
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="font-semibold text-slate-900">{name}</h3>
-        {highlighted && (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-900 text-white">★</span>
-        )}
+      {highlighted && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold text-white">
+          ★ Popular
+        </span>
+      )}
+      <h3 className={`text-lg font-semibold ${highlighted ? 'text-white' : 'text-neutral-900'}`}>
+        {name}
+      </h3>
+      <div className="mt-4 flex items-baseline gap-1">
+        <span className={`text-4xl font-bold tracking-tight ${highlighted ? 'text-white' : 'text-neutral-900'}`}>
+          {price}
+        </span>
       </div>
-      <div className="text-3xl font-bold text-slate-900 mt-2">{price}</div>
-      <p className="text-sm text-slate-600 mt-2">{desc}</p>
-      <ul className="mt-6 space-y-2 text-sm text-slate-700 flex-1">
-        {features.map((f, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <span className="text-emerald-600 mt-0.5">✓</span>
-            <span>{f}</span>
+      <p className={`mt-3 text-sm ${highlighted ? 'text-neutral-400' : 'text-neutral-600'}`}>{desc}</p>
+
+      <ul className="mt-6 flex-1 space-y-3 text-sm">
+        {features.map((f) => (
+          <li key={f} className="flex items-start gap-2.5">
+            <span
+              className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
+                highlighted ? 'bg-blue-600 text-white' : 'bg-neutral-900 text-white'
+              }`}
+            >
+              <Icon.Check />
+            </span>
+            <span className={highlighted ? 'text-neutral-200' : 'text-neutral-700'}>{f}</span>
           </li>
         ))}
       </ul>
+
       <button
         onClick={onClick}
-        className={`mt-6 w-full py-2.5 rounded-md text-sm font-medium transition-colors ${
+        className={`mt-8 w-full rounded-xl py-3 text-sm font-medium transition-colors ${
           highlighted
-            ? 'bg-slate-900 text-white hover:bg-slate-800'
-            : 'border border-slate-200 text-slate-900 hover:bg-slate-50'
+            ? 'bg-white text-neutral-900 hover:bg-neutral-100'
+            : 'bg-neutral-900 text-white hover:bg-neutral-700'
         }`}
       >
         {cta}
@@ -249,10 +462,15 @@ function PriceCard({
 
 function Faq({ q, a }: { q: string; a: string }) {
   return (
-    <div className="p-5 rounded-lg border border-slate-200 bg-white">
-      <h3 className="font-medium text-slate-900 mb-2">{q}</h3>
-      <p className="text-sm text-slate-600 leading-relaxed">{a}</p>
-    </div>
+    <details className="group rounded-2xl border border-neutral-200 bg-white p-5 open:shadow-soft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+        <span className="font-semibold text-neutral-900">{q}</span>
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition-transform group-open:rotate-45">
+          <Icon.Plus />
+        </span>
+      </summary>
+      <p className="mt-4 text-sm leading-relaxed text-neutral-600">{a}</p>
+    </details>
   )
 }
 
