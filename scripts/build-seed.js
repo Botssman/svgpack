@@ -94,8 +94,11 @@ function outline(svg) {
   svg = svg.replace(/fill="(?!none)[^"]*"/g, 'fill="currentColor"')
   // Add stroke="currentColor" to shapes that have no stroke
   svg = svg.replace(/<(path|circle|rect|ellipse|line|polyline)(?![^>]*stroke=)/g, '<$1 stroke="currentColor"')
-  // Add fill="none" to shapes that have no fill (so they're outlines)
-  svg = svg.replace(/<(path|circle|rect|ellipse|line|polyline)(?![^>]*fill=)/g, '$1 fill="none"')
+  // Add fill="none" to shapes that have no fill (so they're outlines).
+  // CRITICAL: replacement MUST start with '<' — without it, the leading '<'
+  // gets stripped and the resulting `path fill="none"...` (no '<') is ignored
+  // by the browser. See docs/ICON_RULES.md §3.3.
+  svg = svg.replace(/<(path|circle|rect|ellipse|line|polyline)(?![^>]*fill=)/g, '<$1 fill="none"')
   return svg
 }
 
