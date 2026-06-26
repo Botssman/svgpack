@@ -1,38 +1,40 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-
-@custom-variant dark (&:is(.dark *));
-
-/* ──────────────────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════════════
    RESPONSIVE ROOT FONT SIZE — "rubber band" system.
+   MUST be declared BEFORE @import "tailwindcss" so it appears
+   at the very top of the compiled CSS and beats any cache.
    1rem scales with viewport so the whole layout breathes.
 
    Desktop (≥992px):  0.521vw  → 1rem = 10px @ 1920px
    Tablet  (≤991px):  0.8vw    → 1rem ≈ 7.93px @ 991px
    Mobile-L (≤767px): 1.2vw    → 1rem ≈ 9.2px @ 767px
    Mobile-S (≤479px): 2.77vw   → 1rem ≈ 13.27px @ 479px
-   ────────────────────────────────────────────────────────────── */
+   ════════════════════════════════════════════════════════════════ */
 html {
-  font-size: 0.521vw;
+  font-size: 0.521vw !important;
 }
 
 @media (max-width: 991px) {
   html {
-    font-size: 0.8vw;
+    font-size: 0.8vw !important;
   }
 }
 
 @media (max-width: 767px) {
   html {
-    font-size: 1.2vw;
+    font-size: 1.2vw !important;
   }
 }
 
 @media (max-width: 479px) {
   html {
-    font-size: 2.77vw;
+    font-size: 2.77vw !important;
   }
 }
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* ──────────────────────────────────────────────────────────────
    Tailwind v4 theme tokens — recalibrated so that
