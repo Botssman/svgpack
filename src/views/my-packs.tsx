@@ -70,7 +70,7 @@ export function MyPacks({ nav }: { nav: (v: View) => void }) {
       })
       if (res.status === 403) {
         const data = await res.json()
-        toast({ title: data.message || 'Лимит скачиваний' })
+        toast({ title: data.message || (lang === 'ru' ? 'Лимит скачиваний' : 'Download limit') })
         return
       }
       if (!res.ok) {
@@ -113,98 +113,118 @@ export function MyPacks({ nav }: { nav: (v: View) => void }) {
   const buildsLeft = hasActiveSub ? '∞' : Math.max(0, 3 - user.freeBuildsUsed)
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            {lang === 'ru' ? 'Мои паки' : 'My Packs'}
-          </h1>
-          <p className="mt-2 text-slate-600">
-            {lang === 'ru'
-              ? `Сохранённые кастомизированные паки. Скачиваний осталось: ${buildsLeft} в этом месяце`
-              : `Saved customized packs. Downloads left: ${buildsLeft} this month`}
-          </p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <div className="mb-10">
+        <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
+          {lang === 'ru' ? 'Личный кабинет' : 'Personal Account'}
         </div>
-        <button
-          onClick={() => nav({ name: 'builder' })}
-          className="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
-        >
-          {lang === 'ru' ? 'Собрать новый пак' : 'Build new pack'}
-        </button>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-neutral-900 md:text-4xl">
+          {lang === 'ru' ? 'Мои паки' : 'My Packs'}
+        </h1>
+        <p className="mt-2 text-neutral-600">
+          {lang === 'ru'
+            ? `Сохранённые кастомизированные паки. Скачиваний осталось: ${buildsLeft} в этом месяце`
+            : `Saved customized packs. Downloads left: ${buildsLeft} this month`}
+        </p>
       </div>
 
       {loading ? (
-        <div className="space-y-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-40 bg-slate-100 animate-pulse rounded-xl" />
+            <div key={i} className="h-64 rounded-2xl bg-neutral-100 animate-pulse" />
           ))}
         </div>
       ) : packs.length === 0 ? (
-        <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-xl">
-          <div className="text-6xl mb-4">📦</div>
-          <p className="text-slate-600 mb-4">
+        <div className="py-20 text-center rounded-2xl border-2 border-dashed border-neutral-200">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-neutral-100 flex items-center justify-center">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="8" height="8" rx="1" />
+              <rect x="13" y="3" width="8" height="8" rx="1" />
+              <rect x="3" y="13" width="8" height="8" rx="1" />
+              <rect x="13" y="13" width="8" height="8" rx="1" />
+            </svg>
+          </div>
+          <p className="text-neutral-600 mb-4">
             {lang === 'ru'
               ? 'У вас пока нет сохранённых паков'
               : 'You have no saved packs yet'}
           </p>
-          <button
-            onClick={() => nav({ name: 'catalog' })}
-            className="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800"
-          >
-            {t.nav.catalog}
-          </button>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => nav({ name: 'catalog' })}
+              className="px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700 transition-colors"
+            >
+              {t.nav.catalog}
+            </button>
+            <button
+              onClick={() => nav({ name: 'builder' })}
+              className="px-4 py-2 rounded-lg border border-neutral-200 text-sm font-medium hover:bg-neutral-50 transition-colors"
+            >
+              {lang === 'ru' ? 'Собрать пак' : 'Build pack'}
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {packs.map(pack => (
-            <div key={pack.id} className="p-5 rounded-xl border border-slate-200 bg-white">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">{pack.name}</h3>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
-                    <span>{pack.iconCount} {lang === 'ru' ? 'иконок' : 'icons'}</span>
-                    {pack.basePack && (
-                      <span className="px-2 py-0.5 rounded bg-slate-100 text-xs font-medium">
-                        {lang === 'ru' ? pack.basePack.nameRu : pack.basePack.nameEn}
-                      </span>
-                    )}
-                    <span>{new Date(pack.createdAt).toLocaleDateString()}</span>
+            <div
+              key={pack.id}
+              className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-lift hover:border-neutral-300"
+            >
+              {/* Icon preview grid — like catalog cards */}
+              <div className="grid w-full grid-cols-6 gap-2 bg-neutral-50/60 p-5">
+                {pack.icons.slice(0, 12).map(icon => (
+                  <div
+                    key={icon.id}
+                    className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
+                    dangerouslySetInnerHTML={{
+                      __html: icon.svgSnapshot
+                        ? icon.svgSnapshot
+                            .replace(/width="[^"]*"/, 'width="20"')
+                            .replace(/height="[^"]*"/, 'height="20"')
+                        : ''
+                    }}
+                  />
+                ))}
+                {pack.icons.length > 12 && (
+                  <div className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white text-xs text-neutral-500 font-medium">
+                    +{pack.icons.length - 12}
                   </div>
+                )}
+              </div>
+              <div className="p-5">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-neutral-900">{pack.name}</h3>
+                    <div className="mt-0.5 text-xs text-neutral-500">
+                      {pack.basePack && (
+                        <span className="font-mono">
+                          {lang === 'ru' ? pack.basePack.nameRu : pack.basePack.nameEn}
+                        </span>
+                      )}
+                      {pack.basePack && ' · '}
+                      <span>{new Date(pack.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 whitespace-nowrap">
+                    {pack.iconCount} {lang === 'ru' ? 'иконок' : 'icons'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2 mt-4">
                   <button
                     onClick={() => handleDownload(pack.id, pack.name)}
-                    className="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors"
+                    className="flex-1 rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
                   >
                     {lang === 'ru' ? 'Скачать ZIP' : 'Download ZIP'}
                   </button>
                   <button
                     onClick={() => handleDelete(pack.id)}
                     disabled={deleting === pack.id}
-                    className="px-3 py-2 rounded-md border border-slate-200 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 transition-colors"
+                    className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 transition-colors"
                   >
                     {deleting === pack.id ? '...' : (lang === 'ru' ? 'Удалить' : 'Delete')}
                   </button>
                 </div>
-              </div>
-              {/* Иконки превью */}
-              <div className="flex flex-wrap gap-2">
-                {pack.icons.slice(0, 16).map(icon => (
-                  <div
-                    key={icon.id}
-                    className="w-10 h-10 flex items-center justify-center rounded-md bg-slate-50 border border-slate-100"
-                    dangerouslySetInnerHTML={{
-                      __html: icon.svgSnapshot
-                        ? icon.svgSnapshot.replace(/width="\d+"/, 'width="24"').replace(/height="\d+"/, 'height="24"')
-                        : ''
-                    }}
-                  />
-                ))}
-                {pack.icons.length > 16 && (
-                  <div className="w-10 h-10 flex items-center justify-center rounded-md bg-slate-50 border border-slate-100 text-xs text-slate-500 font-medium">
-                    +{pack.icons.length - 16}
-                  </div>
-                )}
               </div>
             </div>
           ))}

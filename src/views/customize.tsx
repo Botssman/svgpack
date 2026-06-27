@@ -112,6 +112,25 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     return overrides
   }
 
+  // Автоматическое сохранение пака в ЛК при оплате
+  const savePackToAccount = async () => {
+    if (!user || !pack) return
+    try {
+      const items = pack.icons.map(ic => ({
+        iconId: ic.id,
+        cfg: overrides[ic.id] ?? baseCfg,
+      }))
+      await fetch('/api/packs/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+        body: JSON.stringify({
+          name: (lang === 'ru' ? pack.nameRu : pack.nameEn) + ' (custom)',
+          items,
+        }),
+      })
+    } catch {}
+  }
+
   const handlePay = async () => {
     if (!user) {
       toast({ title: t.toast.error, description: 'Login required' })
@@ -137,9 +156,13 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
       })
       if (res.ok) {
         await refresh()
+        // Автоматически сохраняем пак в ЛК при оплате
+        await savePackToAccount()
         toast({ title: t.toast.paid })
       }
     } else {
+      // По подписке тоже автоматически сохраняем
+      await savePackToAccount()
       toast({ title: t.toast.paid })
     }
     // Build download URL with per-icon overrides if any
@@ -170,7 +193,6 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
 
     setSaving(true)
     try {
-      // Собираем items с конфигами
       const items = pack.icons.map(ic => ({
         iconId: ic.id,
         cfg: overrides[ic.id] ?? baseCfg,
@@ -186,7 +208,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
       })
       const data = await res.json()
       if (data.ok) {
-        toast({ title: t.builder.saved })
+        toast({ title: lang === 'ru' ? 'Пак сохранён в мои паки!' : 'Pack saved to my packs!' })
       } else {
         toast({ title: data.error || t.toast.error })
       }

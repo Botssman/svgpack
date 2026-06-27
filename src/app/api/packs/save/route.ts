@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { renderSvg, CustomConfig } from '@/lib/svg'
+import { renderSvg, CustomConfig, DEFAULT_CONFIG } from '@/lib/svg'
 
 // POST /api/packs/save
 // Сохраняет кастомизированный пак в ЛК пользователя.
@@ -61,45 +61,7 @@ export async function POST(req: NextRequest) {
     const icon = icons.find(i => i.id === item.iconId)
     if (!icon) continue
 
-    const cfg: CustomConfig = item.cfg ?? {
-      color: '#0F172A',
-      color2: '#38BDF8',
-      strokeWidth: 1.75,
-      size: 24,
-      background: 'none',
-      bgColor: '#F1F5F9',
-      bgGradient: false,
-      bgGradientStops: [{ offset: 0, color: '#F1F5F9' }, { offset: 100, color: '#CBD5E1' }],
-      bgGradientAngle: 135,
-      colorGradient: false,
-      colorGradientStops: [{ offset: 0, color: '#0F172A' }, { offset: 100, color: '#38BDF8' }],
-      gradientAngle: 135,
-      rotation: 0,
-      mode: 'mono',
-      cornerStyle: 'rounded',
-      padding: 0,
-      bgRadius: 3,
-      opacity: 100,
-      flipH: false,
-      flipV: false,
-      strokeDash: 'solid',
-      lineCap: 'round',
-      lineJoin: 'round',
-      bgBorder: false,
-      bgBorderColor: '#E2E8F0',
-      bgBorderWidth: 1,
-      shadow: 'none',
-      shadowColor: '#000000',
-      shadowBlur: 3,
-      shadowX: 1,
-      shadowY: 1,
-      bgRotation: 0,
-      animation: 'none',
-      animDuration: 1.5,
-      animTiming: 'ease-in-out',
-      animDelay: 0,
-      animIter: 0,
-    }
+    const cfg: CustomConfig = item.cfg ?? DEFAULT_CONFIG
 
     const svgSnapshot = renderSvg(icon.svg, icon.viewBox, cfg)
 

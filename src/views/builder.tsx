@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useBuild } from '@/lib/build-store'
@@ -7,10 +8,13 @@ import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 
 export function Builder({ nav }: { nav: (v: View) => void }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { toast } = useToast()
   const { user } = useUser()
   const { items, remove, clear } = useBuild()
+  const [saving, setSaving] = useState(false)
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [packName, setPackName] = useState('')
 
   const handleDownload = async () => {
     if (items.length === 0) return
@@ -22,14 +26,14 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        name: 'my-pack',
+        name: packName || 'my-pack',
         items: items.map((i) => ({ iconId: i.iconId })),
       }),
     })
 
     if (res.status === 403) {
       const data = await res.json()
-      toast({ title: data.message || 'Лимит скачиваний' })
+      toast({ title: data.message || (lang === 'ru' ? 'Лимит скачиваний' : 'Download limit') })
       return
     }
 
@@ -37,7 +41,7 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'my-pack.zip'
+    a.download = `${packName || 'my-pack'}.zip`
     a.click()
     URL.revokeObjectURL(url)
     toast({ title: t.toast.downloaded })
@@ -45,26 +49,40 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
 
   const handleSave = async () => {
     if (!user) {
-      toast({ title: 'Войдите, чтобы сохранить пак' })
+      toast({ title: lang === 'ru' ? 'Войдите, чтобы сохранить пак' : 'Log in to save pack' })
       nav({ name: 'account' })
       return
     }
     if (items.length === 0) return
+    // Показываем диалог для ввода названия
+    setPackName('')
+    setShowSaveDialog(true)
+  }
 
-    const res = await fetch('/api/packs/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
-      body: JSON.stringify({
-        name: `pack-${Date.now().toString(36)}`,
-        items: items.map(i => ({ iconId: i.iconId })),
-      }),
-    })
-    const data = await res.json()
-    if (data.ok) {
-      toast({ title: t.builder.saved })
-    } else {
-      toast({ title: data.error || t.toast.error })
+  const confirmSave = async () => {
+    if (!user || items.length === 0) return
+    const name = packName.trim() || (lang === 'ru' ? 'Мой пак' : 'My Pack')
+    setSaving(true)
+    try {
+      const res = await fetch('/api/packs/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+        body: JSON.stringify({
+          name,
+          items: items.map(i => ({ iconId: i.iconId })),
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: lang === 'ru' ? 'Пак сохранён в мои паки!' : 'Pack saved to my packs!' })
+        setShowSaveDialog(false)
+      } else {
+        toast({ title: data.error || t.toast.error })
+      }
+    } catch {
+      toast({ title: t.toast.error })
     }
+    setSaving(false)
   }
 
   return (
@@ -100,6 +118,44 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
           )}
         </div>
       </div>
+
+      {/* Save dialog */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">
+              {lang === 'ru' ? 'Сохранить пак в мои паки' : 'Save pack to my packs'}
+            </h3>
+            <label className="block text-xs font-medium text-slate-700 mb-2">
+              {t.builder.saveName}
+            </label>
+            <input
+              type="text"
+              value={packName}
+              onChange={(e) => setPackName(e.target.value)}
+              placeholder={lang === 'ru' ? 'Мой пак' : 'My Pack'}
+              className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmSave() }}
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={confirmSave}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {saving ? '...' : (lang === 'ru' ? 'Сохранить' : 'Save')}
+              </button>
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                className="px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                {lang === 'ru' ? 'Отмена' : 'Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-xl">
