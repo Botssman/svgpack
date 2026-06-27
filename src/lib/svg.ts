@@ -11,6 +11,13 @@ export type CustomConfig = {
   bgColor: string
   rotation: number
   mode: 'mono' | 'duotone'
+  // Gradient support
+  colorGradient: boolean
+  colorGradientStops: { offset: number; color: string }[]
+  gradientAngle: number
+  bgGradient: boolean
+  bgGradientStops: { offset: number; color: string }[]
+  bgGradientAngle: number
 }
 
 export const DEFAULT_CONFIG: CustomConfig = {
@@ -22,6 +29,12 @@ export const DEFAULT_CONFIG: CustomConfig = {
   bgColor: '#F1F5F9',
   rotation: 0,
   mode: 'mono',
+  colorGradient: false,
+  colorGradientStops: [{ offset: 0, color: '#0F172A' }, { offset: 100, color: '#38BDF8' }],
+  gradientAngle: 135,
+  bgGradient: false,
+  bgGradientStops: [{ offset: 0, color: '#F1F5F9' }, { offset: 100, color: '#CBD5E1' }],
+  bgGradientAngle: 135,
 }
 
 /**
@@ -36,6 +49,25 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   // и для duotone-режима чередуем paths между color и color2
   let body = innerSvg
 
+  // Generate gradient defs if needed
+  const gradientId = `grad-${Math.random().toString(36).slice(2, 8)}`
+  const bgGradientId = `bg-grad-${Math.random().toString(36).slice(2, 8)}`
+  let defs = ''
+
+  if (cfg.colorGradient && cfg.colorGradientStops.length >= 2) {
+    const angle = cfg.gradientAngle ?? 135
+    const rad = (angle * Math.PI) / 180
+    const x1 = Math.round(50 - Math.cos(rad) * 50)
+    const y1 = Math.round(50 - Math.sin(rad) * 50)
+    const x2 = Math.round(50 + Math.cos(rad) * 50)
+    const y2 = Math.round(50 + Math.sin(rad) * 50)
+    const stops = cfg.colorGradientStops.map(s => `<stop offset="${s.offset}%" stop-color="${s.color}" />`).join('')
+    defs += `<linearGradient id="${gradientId}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`
+  }
+
+  const effectiveColor = cfg.colorGradient ? `url(#${gradientId})` : cfg.color
+  const effectiveColor2 = cfg.colorGradient ? cfg.color2 : cfg.color2
+
   if (cfg.mode === 'duotone') {
     // Разбиваем по элементам и чередуем цвета
     const parts = body.split(/(<[^>]+\/>)/g).filter(Boolean)
@@ -43,7 +75,7 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
     body = parts
       .map((p) => {
         if (p.startsWith('<')) {
-          const color = idx % 2 === 0 ? cfg.color : cfg.color2
+          const color = idx % 2 === 0 ? effectiveColor : effectiveColor2
           idx++
           if (p.includes('fill=')) {
             return p.replace(/fill="[^"]*"/g, `fill="${color}"`)
@@ -61,13 +93,21 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
       })
       .join('')
   } else {
-    // Моно-режим: все currentColor → cfg.color
-    body = body.replace(/currentColor/g, cfg.color)
-    // Если в путях нет stroke, добавляем
-    body = body.replace(/<path(?![^>]*stroke=)/g, `<path stroke="${cfg.color}"`)
-    body = body.replace(/<circle(?![^>]*stroke=)/g, `<circle stroke="${cfg.color}"`)
-    body = body.replace(/<rect(?![^>]*stroke=)/g, `<rect stroke="${cfg.color}"`)
-    body = body.replace(/<ellipse(?![^>]*stroke=)/g, `<ellipse stroke="${cfg.color}"`)
+    // Моно-режим: все currentColor → effectiveColor
+    if (cfg.colorGradient) {
+      // Для градиента: заменяем currentColor на url(#gradientId)
+      body = body.replace(/currentColor/g, effectiveColor)
+      body = body.replace(/<path(?![^>]*stroke=)/g, `<path stroke="${effectiveColor}"`)
+      body = body.replace(/<circle(?![^>]*stroke=)/g, `<circle stroke="${effectiveColor}"`)
+      body = body.replace(/<rect(?![^>]*stroke=)/g, `<rect stroke="${effectiveColor}"`)
+      body = body.replace(/<ellipse(?![^>]*stroke=)/g, `<ellipse stroke="${effectiveColor}"`)
+    } else {
+      body = body.replace(/currentColor/g, cfg.color)
+      body = body.replace(/<path(?![^>]*stroke=)/g, `<path stroke="${cfg.color}"`)
+      body = body.replace(/<circle(?![^>]*stroke=)/g, `<circle stroke="${cfg.color}"`)
+      body = body.replace(/<rect(?![^>]*stroke=)/g, `<rect stroke="${cfg.color}"`)
+      body = body.replace(/<ellipse(?![^>]*stroke=)/g, `<ellipse stroke="${cfg.color}"`)
+    }
   }
 
   // 2. Принудительно выставляем stroke-width, fill="none" для outline-стиля (если не указано иное)
@@ -82,16 +122,44 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   // 3. Оборачиваем в <svg> с возможным фоном
   const rotation = cfg.rotation
   const needsG = rotation !== 0
-  const bgShape =
-    cfg.background === 'circle'
-      ? `<circle cx="12" cy="12" r="11" fill="${cfg.bgColor}" />`
-      : cfg.background === 'square'
-      ? `<rect x="0.5" y="0.5" width="23" height="23" rx="3" fill="${cfg.bgColor}" />`
-      : ''
 
-  const inner = `${bgShape}${needsG ? `<g transform="rotate(${rotation} 12 12)">` : ''}${body}${needsG ? '</g>' : ''}`
+  // Background — solid or gradient
+  let bgShape = ''
+  if (cfg.background === 'circle') {
+    if (cfg.bgGradient && cfg.bgGradientStops.length >= 2) {
+      const angle = cfg.bgGradientAngle ?? 135
+      const rad = (angle * Math.PI) / 180
+      const x1 = Math.round(50 - Math.cos(rad) * 50)
+      const y1 = Math.round(50 - Math.sin(rad) * 50)
+      const x2 = Math.round(50 + Math.cos(rad) * 50)
+      const y2 = Math.round(50 + Math.sin(rad) * 50)
+      const stops = cfg.bgGradientStops.map(s => `<stop offset="${s.offset}%" stop-color="${s.color}" />`).join('')
+      defs += `<linearGradient id="${bgGradientId}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`
+      bgShape = `<circle cx="12" cy="12" r="11" fill="url(#${bgGradientId})" />`
+    } else {
+      bgShape = `<circle cx="12" cy="12" r="11" fill="${cfg.bgColor}" />`
+    }
+  } else if (cfg.background === 'square') {
+    if (cfg.bgGradient && cfg.bgGradientStops.length >= 2) {
+      const angle = cfg.bgGradientAngle ?? 135
+      const rad = (angle * Math.PI) / 180
+      const x1 = Math.round(50 - Math.cos(rad) * 50)
+      const y1 = Math.round(50 - Math.sin(rad) * 50)
+      const x2 = Math.round(50 + Math.cos(rad) * 50)
+      const y2 = Math.round(50 + Math.sin(rad) * 50)
+      const stops = cfg.bgGradientStops.map(s => `<stop offset="${s.offset}%" stop-color="${s.color}" />`).join('')
+      defs += `<linearGradient id="${bgGradientId}" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">${stops}</linearGradient>`
+      bgShape = `<rect x="0.5" y="0.5" width="23" height="23" rx="3" fill="url(#${bgGradientId})" />`
+    } else {
+      bgShape = `<rect x="0.5" y="0.5" width="23" height="23" rx="3" fill="${cfg.bgColor}" />`
+    }
+  }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" fill="none" stroke="${cfg.color}" stroke-width="${cfg.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
+  const defsTag = defs ? `<defs>${defs}</defs>` : ''
+  const inner = `${defsTag}${bgShape}${needsG ? `<g transform="rotate(${rotation} 12 12)">` : ''}${body}${needsG ? '</g>' : ''}`
+
+  const strokeAttr = cfg.colorGradient ? `stroke="url(#${gradientId})"` : `stroke="${cfg.color}"`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
 }
 
 /**

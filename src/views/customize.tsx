@@ -13,9 +13,35 @@ type Pack = {
   category: string; style: string; tags: string; isFree: boolean; priceCredits: number; icons: Icon[]
 }
 
+type UserPalette = {
+  id: string
+  nameRu: string
+  nameEn: string
+  color1: string
+  color2: string
+  bgColor1: string
+  bgColor2: string
+  isGradient: boolean
+  isBgGradient: boolean
+  gradientAngle: number
+  mode: string
+}
+
 const COST = 5 // credits per customization save
 
 type ScopeMode = 'all' | 'single' | 'multi'
+
+// Built-in palettes
+const BUILTIN_PALETTES = [
+  { nameRu: 'Тёмный', nameEn: 'Dark', color1: '#0F172A', color2: '#F8FAFC', bgColor1: '#F8FAFC', bgColor2: '#F8FAFC', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+  { nameRu: 'Неон', nameEn: 'Neon', color1: '#A855F7', color2: '#1E1B4B', bgColor1: '#1E1B4B', bgColor2: '#0F0720', isGradient: true, isBgGradient: true, gradientAngle: 135, mode: 'duotone' },
+  { nameRu: 'Закат', nameEn: 'Sunset', color1: '#F97316', color2: '#FFF7ED', bgColor1: '#FFF7ED', bgColor2: '#FED7AA', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+  { nameRu: 'Пастель', nameEn: 'Pastel', color1: '#818CF8', color2: '#F5F3FF', bgColor1: '#F5F3FF', bgColor2: '#E0E7FF', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+  { nameRu: 'Лес', nameEn: 'Forest', color1: '#059669', color2: '#ECFDF5', bgColor1: '#ECFDF5', bgColor2: '#A7F3D0', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+  { nameRu: 'Океан', nameEn: 'Ocean', color1: '#0284C7', color2: '#F0F9FF', bgColor1: '#F0F9FF', bgColor2: '#BAE6FD', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+  { nameRu: 'Вишня', nameEn: 'Cherry', color1: '#E11D48', color2: '#FFF1F2', bgColor1: '#FFF1F2', bgColor2: '#FECDD3', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+  { nameRu: 'Моно', nameEn: 'Mono', color1: '#18181B', color2: '#FAFAFA', bgColor1: '#FAFAFA', bgColor2: '#E4E4E7', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+]
 
 export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?: string; nav: (v: View) => void }) {
   const { t, lang } = useI18n()
@@ -31,6 +57,22 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  // User palettes
+  const [userPalettes, setUserPalettes] = useState<UserPalette[]>([])
+  const [showPaletteDialog, setShowPaletteDialog] = useState(false)
+  const [paletteForm, setPaletteForm] = useState({
+    nameRu: '',
+    nameEn: '',
+    color1: '#0F172A',
+    color2: '#38BDF8',
+    bgColor1: '#F1F5F9',
+    bgColor2: '#CBD5E1',
+    isGradient: false,
+    isBgGradient: false,
+    gradientAngle: 135,
+    mode: 'mono' as 'mono' | 'duotone',
+  })
+
   useEffect(() => {
     fetch(`/api/packs/${packSlug}`).then(r => r.json()).then(d => {
       setPack(d.pack)
@@ -42,16 +84,23 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     })
   }, [packSlug, iconId])
 
+  // Fetch user palettes
+  useEffect(() => {
+    if (!user) return
+    fetch('/api/palettes', {
+      headers: { 'x-user-email': user.email },
+    })
+      .then(r => r.json())
+      .then(d => setUserPalettes(d.palettes || []))
+      .catch(() => {})
+  }, [user])
+
   const isPaidUser = !!user && (user.credits >= COST || user.subscriptions?.some(s => s.status === 'active' && new Date(s.expiresAt) > new Date()))
   const hasActiveSub = !!user?.subscriptions?.some(s => s.status === 'active' && new Date(s.expiresAt) > new Date())
 
   // Effective cfg for an icon: override if exists, else baseCfg
   const cfgFor = useCallback((icId: string) => overrides[icId] ?? baseCfg, [overrides, baseCfg])
 
-  // The cfg editor binds to:
-  //   all    → baseCfg
-  //   single → overrides[editingId] (or baseCfg if no icon selected)
-  //   multi  → a "draft" cfg that, on change, writes to all selectedIds' overrides
   const editorCfg: CustomConfig = useMemo(() => {
     if (scopeMode === 'single' && editingId) {
       return overrides[editingId] ?? baseCfg
@@ -71,7 +120,6 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
         return cp
       })
     } else {
-      // multi with no selection → edit baseCfg as a preview-only convenience
       setBaseCfg(next)
     }
   }
@@ -80,10 +128,78 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     setEditorCfg({ ...editorCfg, [key]: value })
   }
 
+  // Apply a palette to the config
+  const applyPalette = (p: typeof BUILTIN_PALETTES[0] | UserPalette) => {
+    const next: CustomConfig = {
+      ...editorCfg,
+      color: p.color1,
+      color2: p.color2,
+      bgColor: p.bgColor1,
+      mode: (p.mode as 'mono' | 'duotone') || 'mono',
+      colorGradient: p.isGradient,
+      bgGradient: p.isBgGradient,
+      gradientAngle: p.gradientAngle || 135,
+      bgGradientAngle: p.gradientAngle || 135,
+      colorGradientStops: p.isGradient
+        ? [{ offset: 0, color: p.color1 }, { offset: 100, color: p.color2 }]
+        : editorCfg.colorGradientStops,
+      bgGradientStops: p.isBgGradient
+        ? [{ offset: 0, color: p.bgColor1 }, { offset: 100, color: p.bgColor2 }]
+        : editorCfg.bgGradientStops,
+    }
+    setEditorCfg(next)
+  }
+
+  // Save user palette
+  const handleSavePalette = async () => {
+    if (!user) {
+      toast({ title: lang === 'ru' ? 'Войдите, чтобы сохранить палитру' : 'Log in to save palette' })
+      nav({ name: 'account' })
+      return
+    }
+    try {
+      const res = await fetch('/api/palettes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+        body: JSON.stringify(paletteForm),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setUserPalettes(prev => [data.palette, ...prev])
+        setShowPaletteDialog(false)
+        toast({ title: lang === 'ru' ? 'Палитра сохранена!' : 'Palette saved!' })
+        // Reset form
+        setPaletteForm({
+          nameRu: '', nameEn: '', color1: '#0F172A', color2: '#38BDF8',
+          bgColor1: '#F1F5F9', bgColor2: '#CBD5E1', isGradient: false,
+          isBgGradient: false, gradientAngle: 135, mode: 'mono',
+        })
+      } else {
+        toast({ title: data.error || t.toast.error })
+      }
+    } catch {
+      toast({ title: t.toast.error })
+    }
+  }
+
+  // Delete user palette
+  const handleDeletePalette = async (id: string) => {
+    if (!user) return
+    try {
+      const res = await fetch(`/api/palettes/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-user-email': user.email },
+      })
+      if (res.ok) {
+        setUserPalettes(prev => prev.filter(p => p.id !== id))
+        toast({ title: lang === 'ru' ? 'Палитра удалена' : 'Palette deleted' })
+      }
+    } catch {}
+  }
+
   const handleIconClick = (ic: Icon) => {
     if (scopeMode === 'single') {
       setEditingId(ic.id)
-      // Initialize override as a clone of baseCfg on first click
       if (!overrides[ic.id]) {
         setOverrides(prev => ({ ...prev, [ic.id]: { ...baseCfg } }))
       }
@@ -95,7 +211,6 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
         return next
       })
     } else {
-      // 'all' mode — just preview the clicked icon
       setEditingId(ic.id)
     }
   }
@@ -156,29 +271,24 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
       })
       if (res.ok) {
         await refresh()
-        // Автоматически сохраняем пак в ЛК при оплате
         await savePackToAccount()
         toast({ title: t.toast.paid })
       }
     } else {
-      // По подписке тоже автоматически сохраняем
       await savePackToAccount()
       toast({ title: t.toast.paid })
     }
-    // Build download URL with per-icon overrides if any
     const cfgMap = buildCfgMap()
     if (cfgMap) {
       const params = new URLSearchParams({ slug: pack!.slug, cfgMap: JSON.stringify(cfgMap) })
       window.open(`/api/download/pack?${params.toString()}`, '_blank')
     } else {
-      // All-mode: single cfg applies to whole pack
       const params = new URLSearchParams({ slug: pack!.slug, cfg: JSON.stringify(baseCfg) })
       window.open(`/api/download/pack?${params.toString()}`, '_blank')
     }
   }
 
   const handleDownloadFree = () => {
-    // Free download = raw icons, no customization
     window.open(`/api/download/pack?slug=${pack!.slug}`, '_blank')
     toast({ title: t.toast.downloaded })
   }
@@ -218,7 +328,6 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     setSaving(false)
   }
 
-  // Preview icon = editingId icon (in single/all) or first selected (in multi)
   const previewIcon: Icon | null = useMemo(() => {
     if (!pack) return null
     if (scopeMode === 'multi') {
@@ -228,7 +337,6 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     return pack.icons.find(i => i.id === editingId) ?? pack.icons[0]
   }, [pack, scopeMode, selectedIds, editingId])
 
-  // Grid icons shown — full pack in single/multi, first 12 in all
   const gridIcons = useMemo(() => {
     if (!pack) return []
     if (scopeMode === 'all') return pack.icons.slice(0, 12)
@@ -242,6 +350,14 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   const hint = scopeMode === 'all' ? t.customize.scopeAllHint
     : scopeMode === 'single' ? t.customize.scopeSingleHint
     : t.customize.scopeMultiHint
+
+  // Generate preview swatch for a palette
+  const paletteSwatchStyle = (p: typeof BUILTIN_PALETTES[0] | UserPalette) => {
+    if (p.isGradient) {
+      return { background: `linear-gradient(${p.gradientAngle || 135}deg, ${p.color1} 50%, ${p.color2} 50%)` }
+    }
+    return { background: p.color1 }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
@@ -285,6 +401,54 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
       <div className="grid lg:grid-cols-[1fr_2fr] gap-6">
         {/* Controls */}
         <div className="space-y-5 p-5 rounded-xl border border-slate-200 bg-white">
+          {/* PALETTE */}
+          <Field label={lang === 'ru' ? 'Палитра' : 'Palette'}>
+            <div className="space-y-3">
+              {/* Built-in palettes */}
+              <div className="flex gap-2 flex-wrap">
+                {BUILTIN_PALETTES.map((p, i) => (
+                  <button
+                    key={i}
+                    title={lang === 'ru' ? p.nameRu : p.nameEn}
+                    onClick={() => applyPalette(p)}
+                    className="cursor-pointer w-8 h-8 rounded-lg border-2 border-slate-200 hover:border-slate-400 transition-colors"
+                    style={paletteSwatchStyle(p)}
+                  />
+                ))}
+              </div>
+              {/* User palettes */}
+              {userPalettes.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {userPalettes.map(p => (
+                    <div key={p.id} className="relative group">
+                      <button
+                        title={lang === 'ru' ? p.nameRu : p.nameEn}
+                        onClick={() => applyPalette(p)}
+                        className="cursor-pointer w-8 h-8 rounded-lg border-2 border-blue-300 hover:border-blue-500 transition-colors ring-1 ring-blue-100"
+                        style={paletteSwatchStyle(p)}
+                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeletePalette(p.id) }}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[8px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Create new palette button */}
+              {user && (
+                <button
+                  onClick={() => setShowPaletteDialog(true)}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  {lang === 'ru' ? '+ Создать свою палитру' : '+ Create custom palette'}
+                </button>
+              )}
+            </div>
+          </Field>
+
           {/* Mode */}
           <Field label={t.customize.mode}>
             <div className="flex gap-2">
@@ -299,19 +463,70 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
 
           {/* Color */}
           <Field label={t.customize.color}>
-            <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={editorCfg.color}
-                onChange={(e) => updateField('color', e.target.value)}
-                className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
-              />
-              <input
-                type="text"
-                value={editorCfg.color}
-                onChange={(e) => updateField('color', e.target.value)}
-                className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
-              />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={editorCfg.color}
+                  onChange={(e) => updateField('color', e.target.value)}
+                  className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={editorCfg.color}
+                  onChange={(e) => updateField('color', e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
+                />
+              </div>
+              {/* Gradient toggle for color */}
+              <div className="flex items-center gap-2">
+                <Toggle active={editorCfg.colorGradient} onClick={() => updateField('colorGradient', !editorCfg.colorGradient)}>
+                  {lang === 'ru' ? 'Градиент' : 'Gradient'}
+                </Toggle>
+              </div>
+              {editorCfg.colorGradient && (
+                <div className="space-y-2 pl-2 border-l-2 border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
+                    <input
+                      type="color"
+                      value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
+                      onChange={(e) => updateField('colorGradientStops', [
+                        { offset: 0, color: editorCfg.color },
+                        { offset: 100, color: e.target.value },
+                      ])}
+                      className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
+                      onChange={(e) => updateField('colorGradientStops', [
+                        { offset: 0, color: editorCfg.color },
+                        { offset: 100, color: e.target.value },
+                      ])}
+                      className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={360}
+                      step={15}
+                      value={editorCfg.gradientAngle}
+                      onChange={(e) => updateField('gradientAngle', parseInt(e.target.value))}
+                      className="flex-1 accent-slate-900"
+                    />
+                    <span className="text-xs text-slate-600 w-8">{editorCfg.gradientAngle}°</span>
+                  </div>
+                  {/* Preview */}
+                  <div
+                    className="h-6 rounded-md"
+                    style={{ background: `linear-gradient(${editorCfg.gradientAngle}deg, ${editorCfg.color}, ${editorCfg.colorGradientStops[1]?.color || editorCfg.color2})` }}
+                  />
+                </div>
+              )}
             </div>
           </Field>
 
@@ -375,19 +590,67 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
 
           {editorCfg.background !== 'none' && (
             <Field label={t.customize.bgColor}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={editorCfg.bgColor}
-                  onChange={(e) => updateField('bgColor', e.target.value)}
-                  className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={editorCfg.bgColor}
-                  onChange={(e) => updateField('bgColor', e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
-                />
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={editorCfg.bgColor}
+                    onChange={(e) => updateField('bgColor', e.target.value)}
+                    className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={editorCfg.bgColor}
+                    onChange={(e) => updateField('bgColor', e.target.value)}
+                    className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
+                  />
+                </div>
+                {/* BG Gradient toggle */}
+                <Toggle active={editorCfg.bgGradient} onClick={() => updateField('bgGradient', !editorCfg.bgGradient)}>
+                  {lang === 'ru' ? 'Градиент фона' : 'BG Gradient'}
+                </Toggle>
+                {editorCfg.bgGradient && (
+                  <div className="space-y-2 pl-2 border-l-2 border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
+                      <input
+                        type="color"
+                        value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
+                        onChange={(e) => updateField('bgGradientStops', [
+                          { offset: 0, color: editorCfg.bgColor },
+                          { offset: 100, color: e.target.value },
+                        ])}
+                        className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
+                        onChange={(e) => updateField('bgGradientStops', [
+                          { offset: 0, color: editorCfg.bgColor },
+                          { offset: 100, color: e.target.value },
+                        ])}
+                        className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        step={15}
+                        value={editorCfg.bgGradientAngle}
+                        onChange={(e) => updateField('bgGradientAngle', parseInt(e.target.value))}
+                        className="flex-1 accent-slate-900"
+                      />
+                      <span className="text-xs text-slate-600 w-8">{editorCfg.bgGradientAngle}°</span>
+                    </div>
+                    <div
+                      className="h-6 rounded-md"
+                      style={{ background: `linear-gradient(${editorCfg.bgGradientAngle}deg, ${editorCfg.bgColor}, ${editorCfg.bgGradientStops[1]?.color || '#CBD5E1'})` }}
+                    />
+                  </div>
+                )}
               </div>
             </Field>
           )}
@@ -460,11 +723,9 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                     }`}
                   >
                     <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={24} />
-                    {/* Override badge */}
                     {isOverridden && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white" />
                     )}
-                    {/* Selected checkmark */}
                     {isSelected && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-slate-900 border-2 border-white flex items-center justify-center">
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -523,6 +784,217 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
           </div>
         </div>
       </div>
+
+      {/* Create Palette Dialog */}
+      {showPaletteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">
+              {lang === 'ru' ? 'Создать палитру' : 'Create Palette'}
+            </h3>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    {lang === 'ru' ? 'Название (RU)' : 'Name (RU)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={paletteForm.nameRu}
+                    onChange={(e) => setPaletteForm(p => ({ ...p, nameRu: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm"
+                    placeholder="Тёмная ночь"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    {lang === 'ru' ? 'Название (EN)' : 'Name (EN)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={paletteForm.nameEn}
+                    onChange={(e) => setPaletteForm(p => ({ ...p, nameEn: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm"
+                    placeholder="Dark Night"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  {lang === 'ru' ? 'Основной цвет' : 'Primary Color'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={paletteForm.color1}
+                    onChange={(e) => setPaletteForm(p => ({ ...p, color1: e.target.value }))}
+                    className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={paletteForm.color1}
+                    onChange={(e) => setPaletteForm(p => ({ ...p, color1: e.target.value }))}
+                    className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-700 mb-1">
+                  <input
+                    type="checkbox"
+                    checked={paletteForm.isGradient}
+                    onChange={(e) => setPaletteForm(p => ({ ...p, isGradient: e.target.checked }))}
+                    className="rounded border-slate-300"
+                  />
+                  {lang === 'ru' ? 'Градиент цвета' : 'Color Gradient'}
+                </label>
+                {paletteForm.isGradient && (
+                  <div className="mt-2 space-y-2 pl-4 border-l-2 border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
+                      <input
+                        type="color"
+                        value={paletteForm.color2}
+                        onChange={(e) => setPaletteForm(p => ({ ...p, color2: e.target.value }))}
+                        className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={paletteForm.color2}
+                        onChange={(e) => setPaletteForm(p => ({ ...p, color2: e.target.value }))}
+                        className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={360}
+                        step={15}
+                        value={paletteForm.gradientAngle}
+                        onChange={(e) => setPaletteForm(p => ({ ...p, gradientAngle: parseInt(e.target.value) }))}
+                        className="flex-1 accent-slate-900"
+                      />
+                      <span className="text-xs text-slate-600 w-8">{paletteForm.gradientAngle}°</span>
+                    </div>
+                    <div
+                      className="h-6 rounded-md"
+                      style={{ background: `linear-gradient(${paletteForm.gradientAngle}deg, ${paletteForm.color1}, ${paletteForm.color2})` }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  {lang === 'ru' ? 'Режим' : 'Mode'}
+                </label>
+                <div className="flex gap-2">
+                  <Toggle active={paletteForm.mode === 'mono'} onClick={() => setPaletteForm(p => ({ ...p, mode: 'mono' }))}>
+                    {t.customize.modeMono}
+                  </Toggle>
+                  <Toggle active={paletteForm.mode === 'duotone'} onClick={() => setPaletteForm(p => ({ ...p, mode: 'duotone' }))}>
+                    {t.customize.modeDuotone}
+                  </Toggle>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  {lang === 'ru' ? 'Цвет фона (если есть фон)' : 'Background Color (if bg enabled)'}
+                </label>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={paletteForm.bgColor1}
+                      onChange={(e) => setPaletteForm(p => ({ ...p, bgColor1: e.target.value }))}
+                      className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={paletteForm.bgColor1}
+                      onChange={(e) => setPaletteForm(p => ({ ...p, bgColor1: e.target.value }))}
+                      className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={paletteForm.isBgGradient}
+                      onChange={(e) => setPaletteForm(p => ({ ...p, isBgGradient: e.target.checked }))}
+                      className="rounded border-slate-300"
+                    />
+                    {lang === 'ru' ? 'Градиент фона' : 'Background Gradient'}
+                  </label>
+                  {paletteForm.isBgGradient && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
+                      <input
+                        type="color"
+                        value={paletteForm.bgColor2}
+                        onChange={(e) => setPaletteForm(p => ({ ...p, bgColor2: e.target.value }))}
+                        className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={paletteForm.bgColor2}
+                        onChange={(e) => setPaletteForm(p => ({ ...p, bgColor2: e.target.value }))}
+                        className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview swatch */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  {lang === 'ru' ? 'Превью' : 'Preview'}
+                </label>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-12 h-12 rounded-lg border border-slate-200"
+                    style={{
+                      background: paletteForm.isGradient
+                        ? `linear-gradient(${paletteForm.gradientAngle}deg, ${paletteForm.color1}, ${paletteForm.color2})`
+                        : paletteForm.color1
+                    }}
+                  />
+                  <div
+                    className="w-12 h-12 rounded-lg border border-slate-200"
+                    style={{
+                      background: paletteForm.isBgGradient
+                        ? `linear-gradient(${paletteForm.gradientAngle}deg, ${paletteForm.bgColor1}, ${paletteForm.bgColor2})`
+                        : paletteForm.bgColor1
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={handleSavePalette}
+                disabled={!paletteForm.nameRu || !paletteForm.nameEn}
+                className="flex-1 py-2.5 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {lang === 'ru' ? 'Сохранить' : 'Save'}
+              </button>
+              <button
+                onClick={() => setShowPaletteDialog(false)}
+                className="px-4 py-2.5 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                {lang === 'ru' ? 'Отмена' : 'Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

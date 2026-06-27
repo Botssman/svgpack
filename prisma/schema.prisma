@@ -27,6 +27,7 @@ model User {
   purchases     Purchase[]
   customIcons   CustomIcon[]
   customPacks   CustomPack[]
+  palettes      UserPalette[]
 }
 
 model Pack {
@@ -132,4 +133,23 @@ model CustomPackIcon {
 
   customPack   CustomPack  @relation(fields: [customPackId], references: [id], onDelete: Cascade)
   customIcon   CustomIcon? @relation(fields: [customIconId], references: [id], onDelete: Cascade)
+}
+
+model UserPalette {
+  id          String   @id @default(cuid())
+  userId      String
+  nameRu      String
+  nameEn      String
+  // Solid or gradient
+  color1      String   // primary color (or gradient start)
+  color2      String   // secondary color (or gradient end) — same as color1 for solid
+  bgColor1    String   @default("#F1F5F9") // background color (or gradient start)
+  bgColor2    String   @default("#F1F5F9") // background gradient end
+  isGradient  Boolean  @default(false) // whether color is a gradient
+  isBgGradient Boolean @default(false) // whether background is a gradient
+  gradientAngle Int    @default(135) // gradient angle in degrees
+  mode        String   @default("mono") // "mono" | "duotone"
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
