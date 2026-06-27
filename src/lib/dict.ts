@@ -9,7 +9,7 @@ export type Lang = 'ru' | 'en'
  * `getDict(lang): Dict` in i18n-server.ts.
  */
 export type Dict = {
-  nav: Record<'home' | 'catalog' | 'builder' | 'billing' | 'admin' | 'account', string>
+  nav: Record<'home' | 'catalog' | 'builder' | 'billing' | 'admin' | 'account' | 'myPacks', string>
   hero: Record<string, string>
   features: Record<string, string>
   pricing: Record<string, string>
@@ -35,6 +35,7 @@ export const dict: Record<Lang, Dict> = {
       billing: 'Тарифы',
       admin: 'Админка',
       account: 'Кабинет',
+      myPacks: 'Мои паки',
     },
     hero: {
       badge: 'SVG-иконки для веб-разработки',
@@ -190,8 +191,11 @@ export const dict: Record<Lang, Dict> = {
       subtitle: 'Добавляйте иконки из любых паков в свою коллекцию',
       empty: 'Сборка пуста. Откройте пак и нажмите «В сборку».',
       download: 'Скачать мой пак (ZIP)',
+      save: 'Сохранить в мои паки',
+      saveName: 'Название пака',
       clear: 'Очистить',
       count: 'в сборке',
+      saved: 'Пак сохранён!',
     },
     account: {
       title: 'Личный кабинет',
@@ -205,6 +209,8 @@ export const dict: Record<Lang, Dict> = {
       logout: 'Выйти',
       login: 'Войти как демо-пользователь',
       adminLink: 'Перейти в админку',
+      downloadsLeft: 'Скачиваний осталось',
+      open: 'Открыть',
     },
     admin: {
       title: 'Админ-панель',
@@ -278,6 +284,7 @@ export const dict: Record<Lang, Dict> = {
       billing: 'Pricing',
       admin: 'Admin',
       account: 'Account',
+      myPacks: 'My Packs',
     },
     hero: {
       badge: 'SVG icons for web dev',
@@ -433,8 +440,11 @@ export const dict: Record<Lang, Dict> = {
       subtitle: 'Add icons from any pack to your collection',
       empty: 'Build is empty. Open a pack and click "Add to build".',
       download: 'Download my pack (ZIP)',
+      save: 'Save to my packs',
+      saveName: 'Pack name',
       clear: 'Clear',
       count: 'in build',
+      saved: 'Pack saved!',
     },
     account: {
       title: 'Account',
@@ -448,6 +458,8 @@ export const dict: Record<Lang, Dict> = {
       logout: 'Log out',
       login: 'Log in as demo user',
       adminLink: 'Go to admin',
+      downloadsLeft: 'Downloads left',
+      open: 'Open',
     },
     admin: {
       title: 'Admin panel',

@@ -161,12 +161,14 @@ function Header({ itemsCount }: { itemsCount: number }) {
     setMobileOpen(false)
   }, [pathname])
 
-  const navItems: { label: string; href: string; badge?: number; adminOnly?: boolean }[] = [
+  const navItems: { label: string; href: string; badge?: number; adminOnly?: boolean; authOnly?: boolean }[] = [
     { label: t.nav.catalog, href: '/catalog' },
     { label: t.nav.builder, href: '/builder', badge: itemsCount },
+    { label: t.nav.myPacks, href: '/my-packs', authOnly: true },
     { label: t.nav.billing, href: '/pricing' },
     { label: t.nav.admin, href: '/admin', adminOnly: true },
   ].filter((i) => !i.adminOnly || user?.role === 'admin')
+   .filter((i) => !i.authOnly || !!user)
 
   return (
     <header className="sticky top-0 z-40 border-b border-neutral-200/80 bg-white/85 backdrop-blur-xl">

@@ -18,6 +18,7 @@ export function Account({ nav }: { nav: (v: View) => void }) {
   }
 
   const hasActiveSub = !!user?.subscriptions?.some(s => s.status === 'active' && new Date(s.expiresAt) > new Date())
+  const buildsLeft = hasActiveSub ? '∞' : (user ? Math.max(0, 3 - user.freeBuildsUsed) : 0)
 
   if (!user) {
     return (
@@ -77,6 +78,19 @@ export function Account({ nav }: { nav: (v: View) => void }) {
               <div className="text-lg font-semibold text-slate-900 mt-1">
                 {hasActiveSub ? t.account.planSub : t.account.planFree}
               </div>
+            </div>
+            <div className="p-4 rounded-lg bg-slate-50">
+              <div className="text-xs text-slate-500">{t.account.downloadsLeft}</div>
+              <div className="text-2xl font-bold text-slate-900 mt-1">{buildsLeft}<span className="text-sm font-normal text-slate-500">/3</span></div>
+            </div>
+            <div className="p-4 rounded-lg bg-slate-50">
+              <div className="text-xs text-slate-500">{t.nav.myPacks}</div>
+              <button
+                onClick={() => nav({ name: 'my-packs' })}
+                className="mt-1 text-lg font-semibold text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {t.account.open} →
+              </button>
             </div>
           </div>
         </div>

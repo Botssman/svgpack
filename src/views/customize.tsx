@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
-import { CustomConfig, DEFAULT_CONFIG } from '@/lib/svg'
+import { CustomConfig, DEFAULT_CONFIG, renderSvg } from '@/lib/svg'
 import { useUser } from '@/lib/user-store'
 import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
@@ -29,6 +29,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   const [editingId, setEditingId] = useState<string | null>(null)        // for "single"
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()) // for "multi"
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetch(`/api/packs/${packSlug}`).then(r => r.json()).then(d => {
@@ -157,6 +158,42 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     // Free download = raw icons, no customization
     window.open(`/api/download/pack?slug=${pack!.slug}`, '_blank')
     toast({ title: t.toast.downloaded })
+  }
+
+  const handleSave = async () => {
+    if (!user) {
+      toast({ title: t.toast.error, description: 'Login required' })
+      nav({ name: 'account' })
+      return
+    }
+    if (!pack) return
+
+    setSaving(true)
+    try {
+      // Собираем items с конфигами
+      const items = pack.icons.map(ic => ({
+        iconId: ic.id,
+        cfg: overrides[ic.id] ?? baseCfg,
+      }))
+
+      const res = await fetch('/api/packs/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+        body: JSON.stringify({
+          name: (lang === 'ru' ? pack.nameRu : pack.nameEn) + ' (custom)',
+          items,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: t.builder.saved })
+      } else {
+        toast({ title: data.error || t.toast.error })
+      }
+    } catch {
+      toast({ title: t.toast.error })
+    }
+    setSaving(false)
   }
 
   // Preview icon = editingId icon (in single/all) or first selected (in multi)
@@ -452,6 +489,15 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                 {t.customize.free}
               </button>
             </div>
+            {user && pack && (
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full py-2.5 rounded-md border border-slate-900 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                {saving ? '...' : (lang === 'ru' ? 'Сохранить в мои паки' : 'Save to my packs')}
+              </button>
+            )}
           </div>
         </div>
       </div>

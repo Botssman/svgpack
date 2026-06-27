@@ -16,6 +16,7 @@ export type View =
   | { name: 'pack'; slug: string }
   | { name: 'customize'; packSlug: string; iconId?: string }
   | { name: 'builder' }
+  | { name: 'my-packs' }
   | { name: 'billing' }
   | { name: 'account' }
   | { name: 'admin' }
@@ -35,6 +36,8 @@ export function viewToHref(v: View): string {
         : `/catalog/${v.packSlug}`
     case 'builder':
       return '/builder'
+    case 'my-packs':
+      return '/my-packs'
     case 'billing':
       return '/pricing'
     case 'account':

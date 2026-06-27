@@ -7,6 +7,8 @@ export type User = {
   name: string | null
   role: string
   credits: number
+  freeBuildsUsed: number
+  freeBuildsResetAt: string | null
   subscriptions: { id: string; status: string; expiresAt: string; plan: string }[]
   purchases: { id: string; kind: string; refId: string | null; amount: number; credits: number; createdAt: string }[]
 }
