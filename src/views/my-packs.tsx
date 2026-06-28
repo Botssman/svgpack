@@ -217,6 +217,14 @@ export function MyPacks({ nav }: { nav: (v: View) => void }) {
                   >
                     {lang === 'ru' ? 'Скачать ZIP' : 'Download ZIP'}
                   </button>
+                  {pack.basePack && (
+                    <button
+                      onClick={() => nav({ name: 'customize', packSlug: pack.basePack!.slug })}
+                      className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                    >
+                      {lang === 'ru' ? 'Кастомизировать' : 'Customize'}
+                    </button>
+                  )}
                   <button
                     onClick={() => handleDelete(pack.id)}
                     disabled={deleting === pack.id}

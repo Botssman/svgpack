@@ -1,11 +1,12 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useBuild } from '@/lib/build-store'
 import { useUser } from '@/lib/user-store'
 import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
+import { CustomConfig, DEFAULT_CONFIG, renderSvg } from '@/lib/svg'
 
 export function Builder({ nav }: { nav: (v: View) => void }) {
   const { t, lang } = useI18n()
@@ -15,6 +16,8 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
   const [saving, setSaving] = useState(false)
   const [showSaveDialog, setShowSaveDialog] = useState(false)
   const [packName, setPackName] = useState('')
+  const [cfg, setCfg] = useState<CustomConfig>(DEFAULT_CONFIG)
+  const [showCustomizer, setShowCustomizer] = useState(false)
 
   const handleDownload = async () => {
     if (items.length === 0) return
@@ -97,6 +100,14 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
           {items.length > 0 && (
             <>
               <button
+                onClick={() => setShowCustomizer(!showCustomizer)}
+                className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
+              >
+                {showCustomizer
+                  ? (lang === 'ru' ? 'Скрыть настройки' : 'Hide settings')
+                  : (lang === 'ru' ? 'Кастомизировать' : 'Customize')}
+              </button>
+              <button
                 onClick={clear}
                 className="px-3 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
               >
@@ -157,6 +168,100 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
         </div>
       )}
 
+      {/* Customizer panel */}
+      {showCustomizer && items.length > 0 && (
+        <div className="mb-6 p-5 rounded-xl border border-slate-200 bg-white space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Color */}
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-2">{lang === 'ru' ? 'Цвет' : 'Color'}</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={cfg.color}
+                  onChange={(e) => setCfg({ ...cfg, color: e.target.value })}
+                  className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={cfg.color}
+                  onChange={(e) => setCfg({ ...cfg, color: e.target.value })}
+                  className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                />
+              </div>
+            </div>
+            {/* Stroke width */}
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-2">{lang === 'ru' ? 'Толщина' : 'Stroke'}: {cfg.strokeWidth}px</label>
+              <input
+                type="range"
+                min={0.5}
+                max={3}
+                step={0.25}
+                value={cfg.strokeWidth}
+                onChange={(e) => setCfg({ ...cfg, strokeWidth: parseFloat(e.target.value) })}
+                className="w-full accent-slate-900"
+              />
+            </div>
+            {/* Size */}
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-2">{lang === 'ru' ? 'Размер' : 'Size'}: {cfg.size}px</label>
+              <div className="flex gap-1 flex-wrap">
+                {[16, 20, 24, 32, 48].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setCfg({ ...cfg, size: s })}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${cfg.size === s ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Background */}
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-2">{lang === 'ru' ? 'Фон' : 'Background'}</label>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCfg({ ...cfg, background: 'none' })}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${cfg.background === 'none' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >{lang === 'ru' ? 'Нет' : 'None'}</button>
+                <button
+                  onClick={() => setCfg({ ...cfg, background: 'circle' })}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${cfg.background === 'circle' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >{lang === 'ru' ? 'Круг' : 'Circle'}</button>
+                <button
+                  onClick={() => setCfg({ ...cfg, background: 'square' })}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${cfg.background === 'square' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                >{lang === 'ru' ? 'Квадрат' : 'Square'}</button>
+              </div>
+              {cfg.background !== 'none' && (
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="color"
+                    value={cfg.bgColor}
+                    onChange={(e) => setCfg({ ...cfg, bgColor: e.target.value })}
+                    className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={cfg.bgColor}
+                    onChange={(e) => setCfg({ ...cfg, bgColor: e.target.value })}
+                    className="flex-1 px-2 py-1 rounded-md border border-slate-200 text-xs font-mono"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setCfg(DEFAULT_CONFIG)}
+            className="text-xs text-slate-500 hover:text-slate-900 underline"
+          >
+            {lang === 'ru' ? 'Сбросить настройки' : 'Reset settings'}
+          </button>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-xl">
           <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-slate-100 flex items-center justify-center">
@@ -177,9 +282,9 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
           {items.map((item) => (
-            <div key={item.iconId} className="group rounded-xl border border-slate-200 bg-white p-4">
+            <div key={item.iconId} className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-lift">
               <div className="aspect-square flex items-center justify-center bg-slate-50 rounded-lg mb-3">
-                <IconView innerSvg={item.svg} viewBox={item.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={32} />
+                <IconView innerSvg={item.svg} viewBox={item.viewBox} cfg={cfg} size={32} />
               </div>
               <div className="text-sm font-medium text-slate-900 truncate">{item.name}</div>
               <div className="text-xs text-slate-500 mb-2 truncate">{item.packSlug}</div>

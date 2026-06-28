@@ -89,7 +89,7 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {pack.icons.map((ic) => (
-          <div key={ic.id} className="group rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:shadow-sm transition-all">
+          <div key={ic.id} className="group rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:shadow-sm transition-all hover:-translate-y-0.5">
             <div className="aspect-square flex items-center justify-center bg-slate-50 rounded-lg mb-3 group-hover:bg-slate-100 transition-colors">
               <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={40} />
             </div>

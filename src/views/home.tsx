@@ -123,7 +123,11 @@ const PACK_THEMES = [
 ] as const
 
 export function Home({ nav }: { nav: (v: View) => void }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+
+  // Dynamic stats from pack data
+  const totalPacks = PACKS.length
+  const totalIcons = PACKS.reduce((sum, p) => sum + p.icons.length, 0)
 
   return (
     <div>
@@ -171,7 +175,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
 
               {/* Mini stats */}
               <div className="mt-12 flex flex-wrap gap-8">
-                <Stat value={t.hero.stat1} label={t.hero.stat1Label} />
+                <Stat value={`${totalIcons} ${lang === 'ru' ? 'иконок' : 'icons'}`} label={`${lang === 'ru' ? 'в' : 'in'} ${totalPacks} ${lang === 'ru' ? 'паков' : 'packs'}`} />
                 <Stat value={t.hero.stat2} label={t.hero.stat2Label} />
                 <Stat value={t.hero.stat3} label={t.hero.stat3Label} />
               </div>

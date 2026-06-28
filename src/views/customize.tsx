@@ -370,34 +370,6 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
         <p className="mt-2 text-slate-600">{t.customize.subtitle} · {lang === 'ru' ? pack.nameRu : pack.nameEn}</p>
       </div>
 
-      {/* SCOPE MODE SELECTOR */}
-      <div className="mb-6 p-4 rounded-xl border border-slate-200 bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-700 mr-2">{t.customize.scopeMode}:</span>
-            <Toggle active={scopeMode === 'all'} onClick={() => setScopeMode('all')}>{t.customize.scopeAll}</Toggle>
-            <Toggle active={scopeMode === 'single'} onClick={() => setScopeMode('single')}>{t.customize.scopeSingle}</Toggle>
-            <Toggle active={scopeMode === 'multi'} onClick={() => setScopeMode('multi')}>{t.customize.scopeMulti}</Toggle>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-slate-500">
-            {scopeMode === 'multi' && (
-              <span className="px-2 py-1 rounded bg-slate-100 text-slate-700">
-                {selectedIds.size} {t.customize.selected}
-              </span>
-            )}
-            {editedCount > 0 && (
-              <>
-                <span className="px-2 py-1 rounded bg-amber-50 text-amber-700">
-                  {editedCount} {t.customize.edited}
-                </span>
-                <button onClick={resetAll} className="underline hover:text-slate-900">{t.customize.resetAll}</button>
-              </>
-            )}
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-slate-500">{hint}</p>
-      </div>
-
       <div className="grid lg:grid-cols-[1fr_2fr] gap-6">
         {/* Controls */}
         <div className="space-y-5 p-5 rounded-xl border border-slate-200 bg-white">
@@ -696,6 +668,34 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
             </div>
           </div>
 
+          {/* Scope mode selector — ABOVE the icon grid */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-slate-700 mr-2">{t.customize.scopeMode}:</span>
+                <Toggle active={scopeMode === 'all'} onClick={() => setScopeMode('all')}>{t.customize.scopeAll}</Toggle>
+                <Toggle active={scopeMode === 'single'} onClick={() => setScopeMode('single')}>{t.customize.scopeSingle}</Toggle>
+                <Toggle active={scopeMode === 'multi'} onClick={() => setScopeMode('multi')}>{t.customize.scopeMulti}</Toggle>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-slate-500">
+                {scopeMode === 'multi' && (
+                  <span className="px-2 py-1 rounded bg-slate-100 text-slate-700">
+                    {selectedIds.size} {t.customize.selected}
+                  </span>
+                )}
+                {editedCount > 0 && (
+                  <>
+                    <span className="px-2 py-1 rounded bg-amber-50 text-amber-700">
+                      {editedCount} {t.customize.edited}
+                    </span>
+                    <button onClick={resetAll} className="underline hover:text-slate-900">{t.customize.resetAll}</button>
+                  </>
+                )}
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">{hint}</p>
+          </div>
+
           {/* Grid of icons */}
           <div className="p-6 rounded-xl border border-slate-200 bg-white">
             <div className="flex items-center justify-between mb-3">
@@ -714,7 +714,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                     key={ic.id}
                     onClick={() => handleIconClick(ic)}
                     title={ic.slug}
-                    className={`relative aspect-square flex items-center justify-center rounded-md border transition-all ${
+                    className={`relative aspect-square flex items-center justify-center rounded-md border transition-all hover:scale-110 ${
                       isEditing || isSelected
                         ? 'border-slate-900 bg-slate-100 ring-2 ring-slate-900'
                         : isOverridden
