@@ -236,7 +236,39 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   }
 
   const effectiveColor = cfg.colorGradient ? `url(#${gradientId})` : cfg.color
-  const effectiveColor2 = cfg.colorGradient ? cfg.color2 : cfg.color2
+  const effectiveColor2 = cfg.color2  // второй цвет всегда плоский
+
+  /**
+   * Определяем «тип» элемента по его атрибутам fill/stroke:
+   * - fill-based: fill="currentColor" stroke="none"  → красим fill, stroke оставляем none
+   * - stroke-based: fill="none" stroke="currentColor"  → красим stroke, fill оставляем none
+   * - neutral: нет ни fill= ни stroke=  → для моно: stroke=color, fill=none; для duotone: чередуем stroke
+   */
+  function applyColorToElement(el: string, color: string, color2?: string): string {
+    const hasFill = /fill="/.test(el)
+    const hasStroke = /stroke="/.test(el)
+    const fillVal = hasFill ? el.match(/fill="([^"]*)"/)?.[1] : undefined
+    const strokeVal = hasStroke ? el.match(/stroke="([^"]*)"/)?.[1] : undefined
+
+    const isFillBased = fillVal === 'currentColor' && (strokeVal === 'none' || !hasStroke)
+    const isStrokeBased = strokeVal === 'currentColor' && (fillVal === 'none' || !hasFill)
+
+    if (isFillBased) {
+      // Иконка на основе заливки — красим fill, stroke оставляем none
+      return el.replace(/fill="currentColor"/g, `fill="${color}"`)
+    }
+
+    if (isStrokeBased) {
+      // Иконка на основе линий — красим stroke, fill оставляем none
+      return el.replace(/stroke="currentColor"/g, `stroke="${color}"`)
+    }
+
+    // Нейтральный элемент (нет fill/stroke или другие значения) — добавляем stroke
+    if (el.startsWith('<path') || el.startsWith('<circle') || el.startsWith('<rect') || el.startsWith('<ellipse')) {
+      return el.replace(/<(\w+)/, `<$1 fill="none" stroke="${color}"`)
+    }
+    return el
+  }
 
   if (cfg.mode === 'duotone') {
     // Разбиваем по элементам и чередуем цвета
@@ -247,35 +279,21 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
         if (p.startsWith('<')) {
           const color = idx % 2 === 0 ? effectiveColor : effectiveColor2
           idx++
-          if (p.includes('fill=')) {
-            return p.replace(/fill="[^"]*"/g, `fill="${color}"`)
-          }
-          if (p.includes('stroke=')) {
-            return p.replace(/stroke="[^"]*"/g, `stroke="${color}"`)
-          }
-          if (p.startsWith('<path') || p.startsWith('<circle') || p.startsWith('<rect') || p.startsWith('<ellipse')) {
-            return p.replace(/<(\w+)/, `<$1 fill="none" stroke="${color}"`)
-          }
-          return p
+          return applyColorToElement(p, color)
         }
         return p
       })
       .join('')
   } else {
     // Моно-режим: все currentColor → effectiveColor
-    if (cfg.colorGradient) {
-      body = body.replace(/currentColor/g, effectiveColor)
-      body = body.replace(/<path(?![^>]*stroke=)/g, `<path stroke="${effectiveColor}"`)
-      body = body.replace(/<circle(?![^>]*stroke=)/g, `<circle stroke="${effectiveColor}"`)
-      body = body.replace(/<rect(?![^>]*stroke=)/g, `<rect stroke="${effectiveColor}"`)
-      body = body.replace(/<ellipse(?![^>]*stroke=)/g, `<ellipse stroke="${effectiveColor}"`)
-    } else {
-      body = body.replace(/currentColor/g, cfg.color)
-      body = body.replace(/<path(?![^>]*stroke=)/g, `<path stroke="${cfg.color}"`)
-      body = body.replace(/<circle(?![^>]*stroke=)/g, `<circle stroke="${cfg.color}"`)
-      body = body.replace(/<rect(?![^>]*stroke=)/g, `<rect stroke="${cfg.color}"`)
-      body = body.replace(/<ellipse(?![^>]*stroke=)/g, `<ellipse stroke="${cfg.color}"`)
-    }
+    body = body.replace(/currentColor/g, effectiveColor)
+    // Для элементов без stroke= — добавляем stroke с цветом
+    body = body.replace(/<path(?![^>]*stroke=)/g, `<path stroke="${effectiveColor}"`)
+    body = body.replace(/<circle(?![^>]*stroke=)/g, `<circle stroke="${effectiveColor}"`)
+    body = body.replace(/<rect(?![^>]*stroke=)/g, `<rect stroke="${effectiveColor}"`)
+    body = body.replace(/<ellipse(?![^>]*stroke=)/g, `<ellipse stroke="${effectiveColor}"`)
+    body = body.replace(/<line(?![^>]*stroke=)/g, `<line stroke="${effectiveColor}"`)
+    body = body.replace(/<polyline(?![^>]*stroke=)/g, `<polyline stroke="${effectiveColor}"`)
   }
 
   // 2. Принудительно выставляем stroke-width, fill="none" для outline-стиля
