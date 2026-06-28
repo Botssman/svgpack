@@ -30,7 +30,7 @@ type UserPalette = {
 const COST = 5 // credits per customization save
 
 type ScopeMode = 'all' | 'single' | 'multi'
-type ControlTab = 'style' | 'animation'
+type ControlTab = 'color' | 'style' | 'animation'
 
 // Built-in palettes
 const BUILTIN_PALETTES = [
@@ -72,7 +72,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()) // for "multi"
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [controlTab, setControlTab] = useState<ControlTab>('style')
+  const [controlTab, setControlTab] = useState<ControlTab>('color')
 
   // User palettes
   const [userPalettes, setUserPalettes] = useState<UserPalette[]>([])
@@ -431,6 +431,16 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
           {/* Tab system */}
           <div className="flex gap-6 mb-5 border-b border-slate-200">
             <button
+              onClick={() => setControlTab('color')}
+              className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                controlTab === 'color'
+                  ? 'border-slate-900 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {lang === 'ru' ? 'Цвет' : 'Color'}
+            </button>
+            <button
               onClick={() => setControlTab('style')}
               className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
                 controlTab === 'style'
@@ -452,8 +462,8 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
             </button>
           </div>
 
-          {/* ============ STYLE TAB ============ */}
-          {controlTab === 'style' && (
+          {/* ============ COLOR TAB ============ */}
+          {controlTab === 'color' && (
             <div className="space-y-5">
               {/* PALETTE */}
               <Field label={lang === 'ru' ? 'Палитра' : 'Palette'}>
@@ -651,6 +661,19 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                   </div>
                 </Field>
               )}
+
+              <button
+                onClick={() => setEditorCfg({ ...DEFAULT_CONFIG })}
+                className="text-xs text-slate-500 hover:text-slate-900 underline"
+              >
+                {t.customize.reset}
+              </button>
+            </div>
+          )}
+
+          {/* ============ STYLE TAB ============ */}
+          {controlTab === 'style' && (
+            <div className="space-y-5">
 
               {/* Толщина линий / Stroke width */}
               <Field label={`${lang === 'ru' ? 'Толщина линий' : 'Stroke width'}: ${editorCfg.strokeWidth}px`}>
