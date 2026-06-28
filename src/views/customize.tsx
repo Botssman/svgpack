@@ -306,7 +306,14 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   }
 
   const handleDownloadFree = () => {
-    window.open(`/api/download/pack?slug=${pack!.slug}`, '_blank')
+    const cfgMap = buildCfgMap()
+    if (cfgMap) {
+      const params = new URLSearchParams({ slug: pack!.slug, cfgMap: JSON.stringify(cfgMap) })
+      window.open(`/api/download/pack?${params.toString()}`, '_blank')
+    } else {
+      const params = new URLSearchParams({ slug: pack!.slug, cfg: JSON.stringify(baseCfg) })
+      window.open(`/api/download/pack?${params.toString()}`, '_blank')
+    }
     toast({ title: t.toast.downloaded })
   }
 

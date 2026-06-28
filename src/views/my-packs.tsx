@@ -169,23 +169,26 @@ export function MyPacks({ nav }: { nav: (v: View) => void }) {
           {packs.map(pack => (
             <div
               key={pack.id}
-              className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-lift hover:border-neutral-300"
+              className="group rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-lift hover:border-neutral-300"
             >
               {/* Icon preview grid — like catalog cards */}
               <div className="grid w-full grid-cols-6 gap-2 bg-neutral-50/60 p-5">
-                {pack.icons.slice(0, 12).map(icon => (
-                  <div
-                    key={icon.id}
-                    className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
-                    dangerouslySetInnerHTML={{
-                      __html: icon.svgSnapshot
-                        ? icon.svgSnapshot
-                            .replace(/width="[^"]*"/, 'width="20"')
-                            .replace(/height="[^"]*"/, 'height="20"')
-                        : ''
-                    }}
-                  />
-                ))}
+                {pack.icons.slice(0, 12).map(icon => {
+                  const hasAnim = icon.svgSnapshot?.includes('animateTransform') || icon.svgSnapshot?.includes('<animate ')
+                  const svgSize = hasAnim ? 16 : 20
+                  return (
+                    <div
+                      key={icon.id}
+                      className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white overflow-visible"
+                      dangerouslySetInnerHTML={{
+                        __html: icon.svgSnapshot
+                          ? icon.svgSnapshot
+                              .replace(/width="[^"]*"/, `width="${svgSize}"`)
+                              .replace(/height="[^"]*"/, `height="${svgSize}"`)
+                          : ''
+                      }}
+                    />)
+                })}
                 {pack.icons.length > 12 && (
                   <div className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white text-xs text-neutral-500 font-medium">
                     +{pack.icons.length - 12}
