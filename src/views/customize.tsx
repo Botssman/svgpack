@@ -952,13 +952,13 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
         <div className="space-y-5">
           {/* Big preview */}
           <div className="p-6 rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-center h-64 bg-slate-50 rounded-lg">
+            <div className="flex items-center justify-center h-64 bg-slate-50 rounded-lg overflow-visible">
               {previewIcon && (
                 <IconView
                   innerSvg={previewIcon.svg}
                   viewBox={previewIcon.viewBox}
                   cfg={cfgFor(previewIcon.id)}
-                  size={Math.min(128, editorCfg.size * 4)}
+                  size={cfgFor(previewIcon.id).animation !== 'none' ? Math.min(96, editorCfg.size * 3) : Math.min(128, editorCfg.size * 4)}
                 />
               )}
             </div>
@@ -1016,7 +1016,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                     key={ic.id}
                     onClick={() => handleIconClick(ic)}
                     title={ic.slug}
-                    className={`relative aspect-square flex items-center justify-center rounded-md border transition-all hover:scale-110 ${
+                    className={`relative aspect-square flex items-center justify-center rounded-md border transition-all hover:scale-110 overflow-visible ${
                       isEditing || isSelected
                         ? 'border-slate-900 bg-slate-100 ring-2 ring-slate-900'
                         : isOverridden
@@ -1024,7 +1024,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                         : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
                     }`}
                   >
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={24} />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={cfgFor(ic.id).animation !== 'none' ? 18 : 24} />
                     {isOverridden && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white" />
                     )}

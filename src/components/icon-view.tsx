@@ -17,7 +17,7 @@ export function IconView({ innerSvg, viewBox = '0 0 24 24', cfg, size, className
   return (
     <span
       className={className}
-      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )
