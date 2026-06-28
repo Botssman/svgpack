@@ -32,8 +32,8 @@ export function viewToHref(v: View): string {
       return `/catalog/${v.slug}`
     case 'customize':
       return v.iconId
-        ? `/catalog/${v.packSlug}?icon=${encodeURIComponent(v.iconId)}`
-        : `/catalog/${v.packSlug}`
+        ? `/catalog/${v.packSlug}/customize?icon=${encodeURIComponent(v.iconId)}`
+        : `/catalog/${v.packSlug}/customize`
     case 'builder':
       return '/builder'
     case 'my-packs':
