@@ -98,52 +98,89 @@ function computeDashArray(style: StrokeStyle, strokeWidth: number): string {
 }
 
 /**
+ * Result of SMIL animation generation.
+ * needsScaleCenter = true means the animation uses type="scale"
+ * and needs translate(12,12)/translate(-12,-12) wrapping to scale from center.
+ */
+type AnimResult = {
+  smil: string
+  needsScaleCenter: boolean
+}
+
+/**
  * Generate SMIL animation elements (<animate>, <animateTransform>) for SVG.
  * These work natively in SVG without CSS, including inside dangerouslySetInnerHTML.
+ *
+ * CRITICAL: keySplines must have exactly (values.length - 1) entries.
+ * Each entry is 4 numbers separated by spaces; entries separated by semicolons.
+ * If the count mismatches, browsers silently ignore the entire animation.
  */
-function smilAnimation(cfg: CustomConfig): string {
-  if (cfg.animation === 'none') return ''
+function smilAnimation(cfg: CustomConfig): AnimResult {
+  if (cfg.animation === 'none') return { smil: '', needsScaleCenter: false }
   const dur = cfg.animDuration
   const delay = cfg.animDelay
   const iter = cfg.animIterations === 0 ? 'indefinite' : String(cfg.animIterations)
   const easing = cfg.animEasing
   const begin = delay > 0 ? `${delay}s` : '0s'
 
-  // Build easing attributes for SMIL animations
-  function easeAttrs(): string {
+  // Build easing attributes for SMIL animations.
+  // `intervals` = number of segments between keyframes = values.length - 1.
+  // keySplines must repeat the spline `intervals` times, separated by ';'.
+  function easeAttrs(intervals: number): string {
     if (easing === 'linear') return ' calcMode="linear"'
     const s = easing === 'ease' ? '0.42 0 0.58 1'
       : easing === 'ease-in' ? '0.42 0 1 1'
       : easing === 'ease-out' ? '0 0 0.58 1'
       : '0.42 0 0.58 1' // ease-in-out
-    return ` calcMode="spline" keySplines="${s}"`
+    const repeated = Array(intervals).fill(s).join(';')
+    return ` calcMode="spline" keySplines="${repeated}"`
   }
 
   switch (cfg.animation) {
     case 'spin':
       // Smooth rotation around center — always linear for seamless loop
-      return `<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="${dur}s" begin="${begin}" repeatCount="${iter}" calcMode="linear"/>`
+      // from/to = 1 interval, so keySplines not needed with linear calcMode
+      return { smil: `<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="${dur}s" begin="${begin}" repeatCount="${iter}" calcMode="linear"/>`, needsScaleCenter: false }
+
     case 'pulse':
-      // Scale around center (12,12) — use additive="sum" so base transform=identity stays
-      return `<animateTransform attributeName="transform" type="scale" values="1;1.15;1" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // Scale around center (12,12) — needs translate wrapping in renderSvg()
+      // values has 3 entries → 2 intervals → need 2 keySplines
+      return { smil: `<animateTransform attributeName="transform" type="scale" values="1;1.15;1" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(2)}/>`, needsScaleCenter: true }
+
     case 'bounce':
-      return `<animateTransform attributeName="transform" type="translate" values="0 0;0 -2;0 0" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // 3 values → 2 intervals
+      return { smil: `<animateTransform attributeName="transform" type="translate" values="0 0;0 -2;0 0" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(2)}/>`, needsScaleCenter: false }
+
     case 'shake':
-      return `<animateTransform attributeName="transform" type="translate" values="0;-1.5;0;1.5;0" keyTimes="0;0.25;0.5;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // 5 values → 4 intervals
+      return { smil: `<animateTransform attributeName="transform" type="translate" values="0;-1.5;0;1.5;0" keyTimes="0;0.25;0.5;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(4)}/>`, needsScaleCenter: false }
+
     case 'wobble':
-      return `<animateTransform attributeName="transform" type="rotate" values="0 12 12;-4 12 12;4 12 12;0 12 12" keyTimes="0;0.25;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // 4 values → 3 intervals
+      return { smil: `<animateTransform attributeName="transform" type="rotate" values="0 12 12;-4 12 12;4 12 12;0 12 12" keyTimes="0;0.25;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(3)}/>`, needsScaleCenter: false }
+
     case 'swing':
-      return `<animateTransform attributeName="transform" type="rotate" values="0 12 12;8 12 12;0 12 12" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // 3 values → 2 intervals
+      return { smil: `<animateTransform attributeName="transform" type="rotate" values="0 12 12;8 12 12;0 12 12" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(2)}/>`, needsScaleCenter: false }
+
     case 'fade':
-      return `<animate attributeName="opacity" values="1;0.2;1" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // <animate> on opacity — 3 values → 2 intervals
+      return { smil: `<animate attributeName="opacity" values="1;0.2;1" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(2)}/>`, needsScaleCenter: false }
+
     case 'float':
-      return `<animateTransform attributeName="transform" type="translate" values="0 0;0 -1.5;0 0" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // 3 values → 2 intervals
+      return { smil: `<animateTransform attributeName="transform" type="translate" values="0 0;0 -1.5;0 0" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(2)}/>`, needsScaleCenter: false }
+
     case 'blink':
-      return `<animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.45;0.5;0.95;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}" calcMode="discrete"/>`
+      // discrete — no keySplines needed
+      return { smil: `<animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.45;0.5;0.95;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}" calcMode="discrete"/>`, needsScaleCenter: false }
+
     case 'slide':
-      return `<animateTransform attributeName="transform" type="translate" values="0;1.5;0;-1.5;0" keyTimes="0;0.25;0.5;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs()}/>`
+      // 5 values → 4 intervals
+      return { smil: `<animateTransform attributeName="transform" type="translate" values="0;1.5;0;-1.5;0" keyTimes="0;0.25;0.5;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${easeAttrs(4)}/>`, needsScaleCenter: false }
+
     default:
-      return ''
+      return { smil: '', needsScaleCenter: false }
   }
 }
 
@@ -346,7 +383,7 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   const opacityAttr = cfg.opacity < 1 ? ` opacity="${cfg.opacity}"` : ''
 
   // 8. Animation (SMIL — must be child of the element it animates)
-  const animElements = smilAnimation(cfg)
+  const animResult = smilAnimation(cfg)
   const hasAnim = cfg.animation !== 'none'
 
   // Build inner content:
@@ -354,19 +391,34 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   // <bgShape />
   // <g opacity>                          ← opacity wrapper
   //   <g [filter]>                       ← shadow/glow wrapper
-  //     <g [animation wrapper]>          ← SMIL elements go here as children
-  //       <animateTransform .../>        ← animates this <g>
-  //       <g transform="rotate(...)">    ← rotation
-  //         <paths.../>
+  //     <g transform="translate(12,12)"> ← centering wrapper (pulse only)
+  //       <g>                            ← SMIL target <g>
+  //         <animateTransform .../>      ← animates this <g>
+  //         <g transform="translate(-12,-12)"> ← un-center (pulse only)
+  //           <g transform="rotate(...)">← rotation
+  //             <paths.../>
+  //           </g>
+  //         </g>
   //       </g>
   //     </g>
   //   </g>
   // </g>
 
   const rotInner = needsG ? `<g transform="rotate(${rotation} 12 12)">${body}</g>` : body
-  const animWrapper = hasAnim
-    ? `<g>${animElements}${rotInner}</g>`
-    : rotInner
+
+  let animWrapper: string
+  if (hasAnim) {
+    if (animResult.needsScaleCenter) {
+      // Scale animation: translate center to origin, animate, translate back
+      // This makes type="scale" scale from (12,12) instead of (0,0)
+      animWrapper = `<g transform="translate(12,12)"><g>${animResult.smil}<g transform="translate(-12,-12)">${rotInner}</g></g></g>`
+    } else {
+      animWrapper = `<g>${animResult.smil}${rotInner}</g>`
+    }
+  } else {
+    animWrapper = rotInner
+  }
+
   const filterWrapper = filterAttr
     ? `<g${filterAttr}>${animWrapper}</g>`
     : animWrapper
