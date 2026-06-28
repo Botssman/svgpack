@@ -2,7 +2,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
-import { CustomConfig, DEFAULT_CONFIG, renderSvg } from '@/lib/svg'
+import { CustomConfig, DEFAULT_CONFIG, renderSvg, StrokeStyle, LineCap, LineJoin, BgShape, ShadowType, AnimType, EasingType, ExportFormat } from '@/lib/svg'
 import { useUser } from '@/lib/user-store'
 import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
@@ -30,6 +30,7 @@ type UserPalette = {
 const COST = 5 // credits per customization save
 
 type ScopeMode = 'all' | 'single' | 'multi'
+type ControlTab = 'style' | 'animation'
 
 // Built-in palettes
 const BUILTIN_PALETTES = [
@@ -41,6 +42,21 @@ const BUILTIN_PALETTES = [
   { nameRu: 'Океан', nameEn: 'Ocean', color1: '#0284C7', color2: '#F0F9FF', bgColor1: '#F0F9FF', bgColor2: '#BAE6FD', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
   { nameRu: 'Вишня', nameEn: 'Cherry', color1: '#E11D48', color2: '#FFF1F2', bgColor1: '#FFF1F2', bgColor2: '#FECDD3', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
   { nameRu: 'Моно', nameEn: 'Mono', color1: '#18181B', color2: '#FAFAFA', bgColor1: '#FAFAFA', bgColor2: '#E4E4E7', isGradient: false, isBgGradient: false, gradientAngle: 135, mode: 'mono' },
+]
+
+// Animation type labels with icons
+const ANIM_TYPES: { value: AnimType; labelRu: string; labelEn: string; icon: string }[] = [
+  { value: 'none', labelRu: 'Нет', labelEn: 'None', icon: '⊘' },
+  { value: 'spin', labelRu: 'Spin', labelEn: 'Spin', icon: '↻' },
+  { value: 'pulse', labelRu: 'Pulse', labelEn: 'Pulse', icon: '◉' },
+  { value: 'bounce', labelRu: 'Bounce', labelEn: 'Bounce', icon: '⇵' },
+  { value: 'shake', labelRu: 'Shake', labelEn: 'Shake', icon: '≋' },
+  { value: 'wobble', labelRu: 'Wobble', labelEn: 'Wobble', icon: '⟳' },
+  { value: 'swing', labelRu: 'Swing', labelEn: 'Swing', icon: '⤴' },
+  { value: 'fade', labelRu: 'Fade', labelEn: 'Fade', icon: '◐' },
+  { value: 'float', labelRu: 'Float', labelEn: 'Float', icon: '↑' },
+  { value: 'blink', labelRu: 'Blink', labelEn: 'Blink', icon: '⏻' },
+  { value: 'slide', labelRu: 'Slide', labelEn: 'Slide', icon: '→' },
 ]
 
 export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?: string; nav: (v: View) => void }) {
@@ -56,6 +72,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set()) // for "multi"
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [controlTab, setControlTab] = useState<ControlTab>('style')
 
   // User palettes
   const [userPalettes, setUserPalettes] = useState<UserPalette[]>([])
@@ -372,278 +389,563 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
 
       <div className="grid lg:grid-cols-[1fr_2fr] gap-6">
         {/* Controls */}
-        <div className="space-y-5 p-5 rounded-xl border border-slate-200 bg-white">
-          {/* PALETTE */}
-          <Field label={lang === 'ru' ? 'Палитра' : 'Palette'}>
-            <div className="space-y-3">
-              {/* Built-in palettes */}
-              <div className="flex gap-2 flex-wrap">
-                {BUILTIN_PALETTES.map((p, i) => (
-                  <button
-                    key={i}
-                    title={lang === 'ru' ? p.nameRu : p.nameEn}
-                    onClick={() => applyPalette(p)}
-                    className="cursor-pointer w-8 h-8 rounded-lg border-2 border-slate-200 hover:border-slate-400 transition-colors"
-                    style={paletteSwatchStyle(p)}
-                  />
-                ))}
-              </div>
-              {/* User palettes */}
-              {userPalettes.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  {userPalettes.map(p => (
-                    <div key={p.id} className="relative group">
+        <div className="p-5 rounded-xl border border-slate-200 bg-white">
+          {/* Tab system */}
+          <div className="flex gap-6 mb-5 border-b border-slate-200">
+            <button
+              onClick={() => setControlTab('style')}
+              className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                controlTab === 'style'
+                  ? 'border-slate-900 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {lang === 'ru' ? 'Стиль' : 'Style'}
+            </button>
+            <button
+              onClick={() => setControlTab('animation')}
+              className={`pb-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                controlTab === 'animation'
+                  ? 'border-slate-900 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {lang === 'ru' ? 'Анимация' : 'Animation'}
+            </button>
+          </div>
+
+          {/* ============ STYLE TAB ============ */}
+          {controlTab === 'style' && (
+            <div className="space-y-5">
+              {/* PALETTE */}
+              <Field label={lang === 'ru' ? 'Палитра' : 'Palette'}>
+                <div className="space-y-3">
+                  {/* Built-in palettes */}
+                  <div className="flex gap-2 flex-wrap">
+                    {BUILTIN_PALETTES.map((p, i) => (
                       <button
+                        key={i}
                         title={lang === 'ru' ? p.nameRu : p.nameEn}
                         onClick={() => applyPalette(p)}
-                        className="cursor-pointer w-8 h-8 rounded-lg border-2 border-blue-300 hover:border-blue-500 transition-colors ring-1 ring-blue-100"
+                        className="cursor-pointer w-8 h-8 rounded-lg border-2 border-slate-200 hover:border-slate-400 transition-colors"
                         style={paletteSwatchStyle(p)}
                       />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeletePalette(p.id) }}
-                        className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[8px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        ×
-                      </button>
+                    ))}
+                  </div>
+                  {/* User palettes */}
+                  {userPalettes.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {userPalettes.map(p => (
+                        <div key={p.id} className="relative group">
+                          <button
+                            title={lang === 'ru' ? p.nameRu : p.nameEn}
+                            onClick={() => applyPalette(p)}
+                            className="cursor-pointer w-8 h-8 rounded-lg border-2 border-blue-300 hover:border-blue-500 transition-colors ring-1 ring-blue-100"
+                            style={paletteSwatchStyle(p)}
+                          />
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeletePalette(p.id) }}
+                            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[8px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  {/* Create new palette button */}
+                  {user && (
+                    <button
+                      onClick={() => setShowPaletteDialog(true)}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      {lang === 'ru' ? '+ Создать свою палитру' : '+ Create custom palette'}
+                    </button>
+                  )}
                 </div>
-              )}
-              {/* Create new palette button */}
-              {user && (
-                <button
-                  onClick={() => setShowPaletteDialog(true)}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
-                >
-                  {lang === 'ru' ? '+ Создать свою палитру' : '+ Create custom palette'}
-                </button>
-              )}
-            </div>
-          </Field>
+              </Field>
 
-          {/* Mode */}
-          <Field label={t.customize.mode}>
-            <div className="flex gap-2">
-              <Toggle active={editorCfg.mode === 'mono'} onClick={() => updateField('mode', 'mono')}>
-                {t.customize.modeMono}
-              </Toggle>
-              <Toggle active={editorCfg.mode === 'duotone'} onClick={() => updateField('mode', 'duotone')}>
-                {t.customize.modeDuotone}
-              </Toggle>
-            </div>
-          </Field>
+              {/* Mode */}
+              <Field label={t.customize.mode}>
+                <div className="flex gap-2">
+                  <Toggle active={editorCfg.mode === 'mono'} onClick={() => updateField('mode', 'mono')}>
+                    {t.customize.modeMono}
+                  </Toggle>
+                  <Toggle active={editorCfg.mode === 'duotone'} onClick={() => updateField('mode', 'duotone')}>
+                    {t.customize.modeDuotone}
+                  </Toggle>
+                </div>
+              </Field>
 
-          {/* Color */}
-          <Field label={t.customize.color}>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={editorCfg.color}
-                  onChange={(e) => updateField('color', e.target.value)}
-                  className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={editorCfg.color}
-                  onChange={(e) => updateField('color', e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
-                />
-              </div>
-              {/* Gradient toggle for color */}
-              <div className="flex items-center gap-2">
-                <Toggle active={editorCfg.colorGradient} onClick={() => updateField('colorGradient', !editorCfg.colorGradient)}>
-                  {lang === 'ru' ? 'Градиент' : 'Gradient'}
-                </Toggle>
-              </div>
-              {editorCfg.colorGradient && (
-                <div className="space-y-2 pl-2 border-l-2 border-slate-100">
+              {/* Цвет / Color */}
+              <Field label={lang === 'ru' ? 'Цвет' : 'Color'}>
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
                     <input
                       type="color"
-                      value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
-                      onChange={(e) => updateField('colorGradientStops', [
-                        { offset: 0, color: editorCfg.color },
-                        { offset: 100, color: e.target.value },
-                      ])}
-                      className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                      value={editorCfg.color}
+                      onChange={(e) => updateField('color', e.target.value)}
+                      className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
                     />
                     <input
                       type="text"
-                      value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
-                      onChange={(e) => updateField('colorGradientStops', [
-                        { offset: 0, color: editorCfg.color },
-                        { offset: 100, color: e.target.value },
-                      ])}
-                      className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                      value={editorCfg.color}
+                      onChange={(e) => updateField('color', e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
                     />
+                    <Toggle active={editorCfg.colorGradient} onClick={() => updateField('colorGradient', !editorCfg.colorGradient)}>
+                      {lang === 'ru' ? 'Градиент' : 'Gradient'}
+                    </Toggle>
+                  </div>
+                  {editorCfg.colorGradient && (
+                    <div className="space-y-2 pl-2 border-l-2 border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
+                        <input
+                          type="color"
+                          value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
+                          onChange={(e) => updateField('colorGradientStops', [
+                            { offset: 0, color: editorCfg.color },
+                            { offset: 100, color: e.target.value },
+                          ])}
+                          className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
+                          onChange={(e) => updateField('colorGradientStops', [
+                            { offset: 0, color: editorCfg.color },
+                            { offset: 100, color: e.target.value },
+                          ])}
+                          className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={360}
+                          step={15}
+                          value={editorCfg.gradientAngle}
+                          onChange={(e) => updateField('gradientAngle', parseInt(e.target.value))}
+                          className="flex-1 accent-slate-900"
+                        />
+                        <span className="text-xs text-slate-600 w-8">{editorCfg.gradientAngle}°</span>
+                      </div>
+                      {/* Preview */}
+                      <div
+                        className="h-6 rounded-md"
+                        style={{ background: `linear-gradient(${editorCfg.gradientAngle}deg, ${editorCfg.color}, ${editorCfg.colorGradientStops[1]?.color || editorCfg.color2})` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </Field>
+
+              {editorCfg.mode === 'duotone' && (
+                <Field label={t.customize.color2}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={editorCfg.color2}
+                      onChange={(e) => updateField('color2', e.target.value)}
+                      className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={editorCfg.color2}
+                      onChange={(e) => updateField('color2', e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
+                    />
+                  </div>
+                </Field>
+              )}
+
+              {/* Толщина линий / Stroke width */}
+              <Field label={`${lang === 'ru' ? 'Толщина линий' : 'Stroke width'}: ${editorCfg.strokeWidth}px`}>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={3}
+                  step={0.25}
+                  value={editorCfg.strokeWidth}
+                  onChange={(e) => updateField('strokeWidth', parseFloat(e.target.value))}
+                  className="w-full accent-slate-900"
+                />
+              </Field>
+
+              {/* Стиль штриха / Stroke style */}
+              <Field label={lang === 'ru' ? 'Стиль штриха' : 'Stroke style'}>
+                <div className="flex gap-2">
+                  <Toggle active={editorCfg.strokeStyle === 'solid'} onClick={() => updateField('strokeStyle', 'solid' as StrokeStyle)}>
+                    {lang === 'ru' ? 'Сплошной' : 'Solid'}
+                  </Toggle>
+                  <Toggle active={editorCfg.strokeStyle === 'dashed'} onClick={() => updateField('strokeStyle', 'dashed' as StrokeStyle)}>
+                    {lang === 'ru' ? 'Пунктир' : 'Dashed'}
+                  </Toggle>
+                  <Toggle active={editorCfg.strokeStyle === 'dotted'} onClick={() => updateField('strokeStyle', 'dotted' as StrokeStyle)}>
+                    {lang === 'ru' ? 'Точки' : 'Dotted'}
+                  </Toggle>
+                </div>
+              </Field>
+
+              {/* Концы линий / Line cap */}
+              <Field label={lang === 'ru' ? 'Концы линий' : 'Line cap'}>
+                <div className="flex gap-2">
+                  <Toggle active={editorCfg.lineCap === 'round'} onClick={() => updateField('lineCap', 'round' as LineCap)}>
+                    {lang === 'ru' ? 'Скруглённые' : 'Round'}
+                  </Toggle>
+                  <Toggle active={editorCfg.lineCap === 'square'} onClick={() => updateField('lineCap', 'square' as LineCap)}>
+                    {lang === 'ru' ? 'Квадратные' : 'Square'}
+                  </Toggle>
+                  <Toggle active={editorCfg.lineCap === 'butt'} onClick={() => updateField('lineCap', 'butt' as LineCap)}>
+                    {lang === 'ru' ? 'Обрезанные' : 'Butt'}
+                  </Toggle>
+                </div>
+              </Field>
+
+              {/* Соединение / Line join */}
+              <Field label={lang === 'ru' ? 'Соединение' : 'Line join'}>
+                <div className="flex gap-2">
+                  <Toggle active={editorCfg.lineJoin === 'round'} onClick={() => updateField('lineJoin', 'round' as LineJoin)}>
+                    {lang === 'ru' ? 'Скруглённое' : 'Round'}
+                  </Toggle>
+                  <Toggle active={editorCfg.lineJoin === 'miter'} onClick={() => updateField('lineJoin', 'miter' as LineJoin)}>
+                    {lang === 'ru' ? 'Острое' : 'Miter'}
+                  </Toggle>
+                  <Toggle active={editorCfg.lineJoin === 'bevel'} onClick={() => updateField('lineJoin', 'bevel' as LineJoin)}>
+                    {lang === 'ru' ? 'Срезанное' : 'Bevel'}
+                  </Toggle>
+                </div>
+              </Field>
+
+              {/* Прозрачность / Opacity */}
+              <Field label={`${lang === 'ru' ? 'Прозрачность' : 'Opacity'}: ${editorCfg.opacity.toFixed(2)}`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={editorCfg.opacity}
+                  onChange={(e) => updateField('opacity', parseFloat(e.target.value))}
+                  className="w-full accent-slate-900"
+                />
+              </Field>
+
+              {/* Размер экспорта / Export size */}
+              <Field label={`${lang === 'ru' ? 'Размер экспорта' : 'Export size'}: ${editorCfg.size}px`}>
+                <div className="space-y-2">
+                  <div className="flex gap-2 flex-wrap">
+                    {[16, 20, 24, 32, 48, 64].map((s) => (
+                      <Toggle key={s} active={editorCfg.size === s} onClick={() => updateField('size', s)}>
+                        {s}
+                      </Toggle>
+                    ))}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
+                    <span className="text-xs text-slate-500">{lang === 'ru' ? 'Другой' : 'Custom'}</span>
                     <input
-                      type="range"
-                      min={0}
-                      max={360}
-                      step={15}
-                      value={editorCfg.gradientAngle}
-                      onChange={(e) => updateField('gradientAngle', parseInt(e.target.value))}
-                      className="flex-1 accent-slate-900"
+                      type="number"
+                      min={8}
+                      max={512}
+                      value={editorCfg.size}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value)
+                        if (v >= 8 && v <= 512) updateField('size', v)
+                      }}
+                      className="w-20 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
                     />
-                    <span className="text-xs text-slate-600 w-8">{editorCfg.gradientAngle}°</span>
+                    <span className="text-xs text-slate-500">px</span>
                   </div>
-                  {/* Preview */}
-                  <div
-                    className="h-6 rounded-md"
-                    style={{ background: `linear-gradient(${editorCfg.gradientAngle}deg, ${editorCfg.color}, ${editorCfg.colorGradientStops[1]?.color || editorCfg.color2})` }}
-                  />
                 </div>
-              )}
-            </div>
-          </Field>
+              </Field>
 
-          {editorCfg.mode === 'duotone' && (
-            <Field label={t.customize.color2}>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={editorCfg.color2}
-                  onChange={(e) => updateField('color2', e.target.value)}
-                  className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={editorCfg.color2}
-                  onChange={(e) => updateField('color2', e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
-                />
-              </div>
-            </Field>
-          )}
-
-          {/* Stroke width */}
-          <Field label={`${t.customize.strokeWidth}: ${editorCfg.strokeWidth}px`}>
-            <input
-              type="range"
-              min={0.5}
-              max={3}
-              step={0.25}
-              value={editorCfg.strokeWidth}
-              onChange={(e) => updateField('strokeWidth', parseFloat(e.target.value))}
-              className="w-full accent-slate-900"
-            />
-          </Field>
-
-          {/* Size */}
-          <Field label={`${t.customize.size}: ${editorCfg.size}px`}>
-            <div className="flex gap-2 flex-wrap">
-              {[16, 20, 24, 32, 48, 64].map((s) => (
-                <Toggle key={s} active={editorCfg.size === s} onClick={() => updateField('size', s)}>
-                  {s}
-                </Toggle>
-              ))}
-            </div>
-          </Field>
-
-          {/* Background */}
-          <Field label={t.customize.background}>
-            <div className="flex gap-2">
-              <Toggle active={editorCfg.background === 'none'} onClick={() => updateField('background', 'none')}>
-                {t.customize.bgNone}
-              </Toggle>
-              <Toggle active={editorCfg.background === 'circle'} onClick={() => updateField('background', 'circle')}>
-                {t.customize.bgCircle}
-              </Toggle>
-              <Toggle active={editorCfg.background === 'square'} onClick={() => updateField('background', 'square')}>
-                {t.customize.bgSquare}
-              </Toggle>
-            </div>
-          </Field>
-
-          {editorCfg.background !== 'none' && (
-            <Field label={t.customize.bgColor}>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={editorCfg.bgColor}
-                    onChange={(e) => updateField('bgColor', e.target.value)}
-                    className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={editorCfg.bgColor}
-                    onChange={(e) => updateField('bgColor', e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
-                  />
+              {/* Фон / Background */}
+              <Field label={lang === 'ru' ? 'Фон' : 'Background'}>
+                <div className="flex gap-2 flex-wrap">
+                  <Toggle active={editorCfg.background === 'none'} onClick={() => updateField('background', 'none' as BgShape)}>
+                    {lang === 'ru' ? 'Нет' : 'None'}
+                  </Toggle>
+                  <Toggle active={editorCfg.background === 'circle'} onClick={() => updateField('background', 'circle' as BgShape)}>
+                    {lang === 'ru' ? 'Круг' : 'Circle'}
+                  </Toggle>
+                  <Toggle active={editorCfg.background === 'square'} onClick={() => updateField('background', 'square' as BgShape)}>
+                    {lang === 'ru' ? 'Квадрат' : 'Square'}
+                  </Toggle>
+                  <Toggle active={editorCfg.background === 'hexagon'} onClick={() => updateField('background', 'hexagon' as BgShape)}>
+                    {lang === 'ru' ? 'Шестиуг.' : 'Hexagon'}
+                  </Toggle>
+                  <Toggle active={editorCfg.background === 'diamond'} onClick={() => updateField('background', 'diamond' as BgShape)}>
+                    {lang === 'ru' ? 'Ромб' : 'Diamond'}
+                  </Toggle>
                 </div>
-                {/* BG Gradient toggle */}
-                <Toggle active={editorCfg.bgGradient} onClick={() => updateField('bgGradient', !editorCfg.bgGradient)}>
-                  {lang === 'ru' ? 'Градиент фона' : 'BG Gradient'}
-                </Toggle>
-                {editorCfg.bgGradient && (
-                  <div className="space-y-2 pl-2 border-l-2 border-slate-100">
+              </Field>
+
+              {editorCfg.background !== 'none' && (
+                <Field label={lang === 'ru' ? 'Цвет фона' : 'Background color'}>
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
                       <input
                         type="color"
-                        value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
-                        onChange={(e) => updateField('bgGradientStops', [
-                          { offset: 0, color: editorCfg.bgColor },
-                          { offset: 100, color: e.target.value },
-                        ])}
-                        className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                        value={editorCfg.bgColor}
+                        onChange={(e) => updateField('bgColor', e.target.value)}
+                        className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
                       />
                       <input
                         type="text"
-                        value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
-                        onChange={(e) => updateField('bgGradientStops', [
-                          { offset: 0, color: editorCfg.bgColor },
-                          { offset: 100, color: e.target.value },
-                        ])}
-                        className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                        value={editorCfg.bgColor}
+                        onChange={(e) => updateField('bgColor', e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={360}
-                        step={15}
-                        value={editorCfg.bgGradientAngle}
-                        onChange={(e) => updateField('bgGradientAngle', parseInt(e.target.value))}
-                        className="flex-1 accent-slate-900"
-                      />
-                      <span className="text-xs text-slate-600 w-8">{editorCfg.bgGradientAngle}°</span>
-                    </div>
-                    <div
-                      className="h-6 rounded-md"
-                      style={{ background: `linear-gradient(${editorCfg.bgGradientAngle}deg, ${editorCfg.bgColor}, ${editorCfg.bgGradientStops[1]?.color || '#CBD5E1'})` }}
-                    />
+                    {/* BG Gradient toggle */}
+                    <Toggle active={editorCfg.bgGradient} onClick={() => updateField('bgGradient', !editorCfg.bgGradient)}>
+                      {lang === 'ru' ? 'Градиент фона' : 'BG Gradient'}
+                    </Toggle>
+                    {editorCfg.bgGradient && (
+                      <div className="space-y-2 pl-2 border-l-2 border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
+                          <input
+                            type="color"
+                            value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
+                            onChange={(e) => updateField('bgGradientStops', [
+                              { offset: 0, color: editorCfg.bgColor },
+                              { offset: 100, color: e.target.value },
+                            ])}
+                            className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
+                            onChange={(e) => updateField('bgGradientStops', [
+                              { offset: 0, color: editorCfg.bgColor },
+                              { offset: 100, color: e.target.value },
+                            ])}
+                            className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={360}
+                            step={15}
+                            value={editorCfg.bgGradientAngle}
+                            onChange={(e) => updateField('bgGradientAngle', parseInt(e.target.value))}
+                            className="flex-1 accent-slate-900"
+                          />
+                          <span className="text-xs text-slate-600 w-8">{editorCfg.bgGradientAngle}°</span>
+                        </div>
+                        <div
+                          className="h-6 rounded-md"
+                          style={{ background: `linear-gradient(${editorCfg.bgGradientAngle}deg, ${editorCfg.bgColor}, ${editorCfg.bgGradientStops[1]?.color || '#CBD5E1'})` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </Field>
+                </Field>
+              )}
+
+              {/* Тень / Свечение / Shadow & Glow */}
+              <Field label={lang === 'ru' ? 'Тень / Свечение' : 'Shadow / Glow'}>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Toggle active={editorCfg.shadowType === 'none'} onClick={() => updateField('shadowType', 'none' as ShadowType)}>
+                      {lang === 'ru' ? 'Нет' : 'None'}
+                    </Toggle>
+                    <Toggle active={editorCfg.shadowType === 'shadow'} onClick={() => updateField('shadowType', 'shadow' as ShadowType)}>
+                      {lang === 'ru' ? 'Тень' : 'Shadow'}
+                    </Toggle>
+                    <Toggle active={editorCfg.shadowType === 'glow'} onClick={() => updateField('shadowType', 'glow' as ShadowType)}>
+                      {lang === 'ru' ? 'Свечение' : 'Glow'}
+                    </Toggle>
+                  </div>
+                  {(editorCfg.shadowType === 'shadow' || editorCfg.shadowType === 'glow') && (
+                    <div className="space-y-3 pl-2 border-l-2 border-slate-100">
+                      {/* Shadow color */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет' : 'Color'}</span>
+                        <input
+                          type="color"
+                          value={editorCfg.shadowColor}
+                          onChange={(e) => updateField('shadowColor', e.target.value)}
+                          className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
+                        />
+                        <input
+                          type="text"
+                          value={editorCfg.shadowColor}
+                          onChange={(e) => updateField('shadowColor', e.target.value)}
+                          className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
+                        />
+                      </div>
+                      {/* Blur */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Размытие' : 'Blur'}</span>
+                        <input
+                          type="range"
+                          min={0}
+                          max={10}
+                          step={0.5}
+                          value={editorCfg.shadowBlur}
+                          onChange={(e) => updateField('shadowBlur', parseFloat(e.target.value))}
+                          className="flex-1 accent-slate-900"
+                        />
+                        <span className="text-xs text-slate-600 w-8">{editorCfg.shadowBlur}</span>
+                      </div>
+                      {/* Offset X */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-14">X</span>
+                        <input
+                          type="range"
+                          min={-5}
+                          max={5}
+                          step={0.5}
+                          value={editorCfg.shadowOffsetX}
+                          onChange={(e) => updateField('shadowOffsetX', parseFloat(e.target.value))}
+                          className="flex-1 accent-slate-900"
+                        />
+                        <span className="text-xs text-slate-600 w-8">{editorCfg.shadowOffsetX}</span>
+                      </div>
+                      {/* Offset Y */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 w-14">Y</span>
+                        <input
+                          type="range"
+                          min={-5}
+                          max={5}
+                          step={0.5}
+                          value={editorCfg.shadowOffsetY}
+                          onChange={(e) => updateField('shadowOffsetY', parseFloat(e.target.value))}
+                          className="flex-1 accent-slate-900"
+                        />
+                        <span className="text-xs text-slate-600 w-8">{editorCfg.shadowOffsetY}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Field>
+
+              {/* Rotation */}
+              <Field label={`${lang === 'ru' ? 'Поворот' : 'Rotation'}: ${editorCfg.rotation}°`}>
+                <div className="flex gap-2">
+                  {[0, 45, 90, 180, 270].map((r) => (
+                    <Toggle key={r} active={editorCfg.rotation === r} onClick={() => updateField('rotation', r)}>
+                      {r}°
+                    </Toggle>
+                  ))}
+                </div>
+              </Field>
+
+              <button
+                onClick={() => setEditorCfg({ ...DEFAULT_CONFIG })}
+                className="text-xs text-slate-500 hover:text-slate-900 underline"
+              >
+                {t.customize.reset}
+              </button>
+            </div>
           )}
 
-          {/* Rotation */}
-          <Field label={`${t.customize.rotation}: ${editorCfg.rotation}°`}>
-            <div className="flex gap-2">
-              {[0, 45, 90, 180, 270].map((r) => (
-                <Toggle key={r} active={editorCfg.rotation === r} onClick={() => updateField('rotation', r)}>
-                  {r}°
-                </Toggle>
-              ))}
-            </div>
-          </Field>
+          {/* ============ ANIMATION TAB ============ */}
+          {controlTab === 'animation' && (
+            <div className="space-y-5">
+              {/* Тип анимации / Animation type */}
+              <Field label={lang === 'ru' ? 'Тип анимации' : 'Animation type'}>
+                <div className="flex gap-2 flex-wrap">
+                  {ANIM_TYPES.map((a) => (
+                    <Toggle
+                      key={a.value}
+                      active={editorCfg.animation === a.value}
+                      onClick={() => updateField('animation', a.value)}
+                    >
+                      <span className="mr-1">{a.icon}</span>
+                      {lang === 'ru' ? a.labelRu : a.labelEn}
+                    </Toggle>
+                  ))}
+                </div>
+              </Field>
 
-          <button
-            onClick={() => setEditorCfg({ ...DEFAULT_CONFIG })}
-            className="text-xs text-slate-500 hover:text-slate-900 underline"
-          >
-            {t.customize.reset}
-          </button>
+              {/* Длительность / Duration */}
+              <Field label={`${lang === 'ru' ? 'Длительность' : 'Duration'}: ${editorCfg.animDuration}s`}>
+                <input
+                  type="range"
+                  min={0.3}
+                  max={5}
+                  step={0.1}
+                  value={editorCfg.animDuration}
+                  onChange={(e) => updateField('animDuration', parseFloat(e.target.value))}
+                  className="w-full accent-slate-900"
+                />
+              </Field>
+
+              {/* Плавность / Easing */}
+              <Field label={lang === 'ru' ? 'Плавность' : 'Easing'}>
+                <div className="flex gap-2 flex-wrap">
+                  {(['ease', 'linear', 'ease-in', 'ease-out', 'ease-in-out'] as EasingType[]).map((e) => (
+                    <Toggle
+                      key={e}
+                      active={editorCfg.animEasing === e}
+                      onClick={() => updateField('animEasing', e)}
+                    >
+                      {e}
+                    </Toggle>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Задержка / Delay */}
+              <Field label={`${lang === 'ru' ? 'Задержка' : 'Delay'}: ${editorCfg.animDelay}s`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={3}
+                  step={0.1}
+                  value={editorCfg.animDelay}
+                  onChange={(e) => updateField('animDelay', parseFloat(e.target.value))}
+                  className="w-full accent-slate-900"
+                />
+              </Field>
+
+              {/* Повторы / Iterations */}
+              <Field label={lang === 'ru' ? 'Повторы' : 'Iterations'}>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { value: 0, label: '∞' },
+                    { value: 1, label: '1' },
+                    { value: 2, label: '2' },
+                    { value: 3, label: '3' },
+                    { value: 5, label: '5' },
+                    { value: 10, label: '10' },
+                  ].map((it) => (
+                    <Toggle
+                      key={it.value}
+                      active={editorCfg.animIterations === it.value}
+                      onClick={() => updateField('animIterations', it.value)}
+                    >
+                      {it.label}
+                    </Toggle>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Формат экспорта / Export format */}
+              <Field label={lang === 'ru' ? 'Формат экспорта' : 'Export format'}>
+                <div className="flex gap-2 flex-wrap">
+                  {(['svg', 'png', 'react', 'vue'] as ExportFormat[]).map((f) => (
+                    <Toggle
+                      key={f}
+                      active={editorCfg.exportFormat === f}
+                      onClick={() => updateField('exportFormat', f)}
+                    >
+                      {f.toUpperCase()}
+                    </Toggle>
+                  ))}
+                </div>
+              </Field>
+            </div>
+          )}
         </div>
 
         {/* Preview */}
@@ -1013,7 +1315,7 @@ function Toggle({ active, onClick, children }: { active: boolean; onClick: () =>
     <button
       onClick={onClick}
       className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-        active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+        active ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
       }`}
     >
       {children}
