@@ -1,7 +1,7 @@
 /**
  * Pack categories — single source of truth for catalog grouping.
  *
- * Stored as TS const (not DB table) because the set is small (4 items)
+ * Stored as TS const (not DB table) because the set is small
  * and changes rarely. Adding a new category: append here + use its slug
  * in PACKS[].category in src/lib/packs-data.ts.
  *
@@ -26,39 +26,39 @@ export type Category = {
 
 export const CATEGORIES: Category[] = [
   {
-    slug: 'web',
-    nameRu: 'Веб-разработка',
-    nameEn: 'Web Development',
-    descRu: 'Иконки языков программирования, фреймворков и инструментов для фронтенда и бэкенда.',
-    descEn: 'Icons for programming languages, frameworks and tools for frontend and backend.',
-    icon: '🌐',
+    slug: 'languages',
+    nameRu: 'Языки',
+    nameEn: 'Languages',
+    descRu: 'Языки программирования и разметки для веб-разработки: HTML, CSS, JavaScript, TypeScript, Python, Go, Rust и другие.',
+    descEn: 'Programming and markup languages for web development: HTML, CSS, JavaScript, TypeScript, Python, Go, Rust and more.',
+    icon: '🔤',
     sortOrder: 10,
   },
   {
-    slug: 'medical',
-    nameRu: 'Медицина',
-    nameEn: 'Medical',
-    descRu: 'Медицинские специальности, учреждения, документы, оборудование и профилактика.',
-    descEn: 'Medical specialties, facilities, documents, equipment and prevention.',
-    icon: '⚕️',
+    slug: 'frameworks',
+    nameRu: 'Фреймворки',
+    nameEn: 'Frameworks',
+    descRu: 'JS-фреймворки и библиотеки: React, Vue, Angular, Svelte, Next.js, Nuxt, Astro, Solid и другие.',
+    descEn: 'JS frameworks and libraries: React, Vue, Angular, Svelte, Next.js, Nuxt, Astro, Solid and more.',
+    icon: '⚡',
     sortOrder: 20,
   },
   {
-    slug: 'realestate',
-    nameRu: 'Недвижимость',
-    nameEn: 'Real Estate',
-    descRu: 'Объекты недвижимости, сделки, инфраструктура, интерьер и финансы.',
-    descEn: 'Real estate objects, deals, infrastructure, interior and finance.',
-    icon: '🏠',
+    slug: 'tools',
+    nameRu: 'Инструменты',
+    nameEn: 'Tools',
+    descRu: 'Инструменты разработчика: Git, GitHub, Docker, VS Code, ESLint, Webpack, Vite, npm и другие.',
+    descEn: 'Developer tools: Git, GitHub, Docker, VS Code, ESLint, Webpack, Vite, npm and more.',
+    icon: '🛠',
     sortOrder: 30,
   },
   {
-    slug: 'law',
-    nameRu: 'Право',
-    nameEn: 'Law',
-    descRu: 'Отрасли права, документы, участники, действия и объекты правоотношений.',
-    descEn: 'Branches of law, documents, actors, actions and objects of legal relations.',
-    icon: '⚖️',
+    slug: 'concepts',
+    nameRu: 'Концепты',
+    nameEn: 'Concepts',
+    descRu: 'Веб-концепты и архитектурные паттерны: API, базы данных, кэш, микросервисы, CI/CD и другие.',
+    descEn: 'Web concepts and architecture patterns: API, databases, cache, microservices, CI/CD and more.',
+    icon: '🧩',
     sortOrder: 40,
   },
 ]

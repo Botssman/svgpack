@@ -63,3 +63,5 @@ server.log
 # Agent / scratch directories
 /.zscripts/
 /worklog.md
+/tool-results/
+/scripts/
