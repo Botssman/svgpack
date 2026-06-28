@@ -86,7 +86,7 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="container-wide py-10">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t.builder.title}</h1>

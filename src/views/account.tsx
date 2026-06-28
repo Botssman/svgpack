@@ -22,7 +22,7 @@ export function Account({ nav }: { nav: (v: View) => void }) {
 
   if (!user) {
     return (
-      <div className="max-w-md mx-auto px-4 sm:px-6 py-20">
+      <div className="container-narrow py-20">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900">{t.account.title}</h1>
           <p className="mt-2 text-sm text-slate-600">{t.account.login}</p>
@@ -53,7 +53,7 @@ export function Account({ nav }: { nav: (v: View) => void }) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10">
+    <div className="container-narrow py-10">
       <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-8">{t.account.title}</h1>
 
       <div className="space-y-6">

@@ -343,8 +343,8 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     return pack.icons
   }, [pack, scopeMode])
 
-  if (loading) return <div className="max-w-7xl mx-auto px-4 py-20"><div className="h-96 bg-slate-100 animate-pulse rounded-xl" /></div>
-  if (!pack) return <div className="max-w-7xl mx-auto px-4 py-20 text-slate-500">404</div>
+  if (loading) return <div className="container-wide py-20"><div className="h-96 bg-slate-100 animate-pulse rounded-xl" /></div>
+  if (!pack) return <div className="container-wide py-20 text-slate-500">404</div>
 
   const editedCount = Object.keys(overrides).length
   const hint = scopeMode === 'all' ? t.customize.scopeAllHint
@@ -360,7 +360,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="container-wide py-10">
       <button onClick={() => nav({ name: 'pack', slug: pack.slug })} className="text-sm text-slate-600 hover:text-slate-900 mb-6">
         {t.packView.back}
       </button>

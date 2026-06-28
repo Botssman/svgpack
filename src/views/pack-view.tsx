@@ -26,8 +26,8 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
     })
   }, [slug])
 
-  if (loading) return <div className="max-w-7xl mx-auto px-4 py-20"><div className="h-64 bg-slate-100 animate-pulse rounded-xl" /></div>
-  if (!pack) return <div className="max-w-7xl mx-auto px-4 py-20 text-slate-500">404</div>
+  if (loading) return <div className="container-wide py-20"><div className="h-64 bg-slate-100 animate-pulse rounded-xl" /></div>
+  if (!pack) return <div className="container-wide py-20 text-slate-500">404</div>
 
   const handleDownload = () => {
     window.open(`/api/download/pack?slug=${pack.slug}`, '_blank')
@@ -51,7 +51,7 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="container-wide py-10">
       <button
         onClick={() => nav({ name: 'catalog' })}
         className="text-sm text-slate-600 hover:text-slate-900 mb-6"

@@ -90,6 +90,57 @@
 
 Конфиг в `src/lib/categories.ts`. Slug пака: `/catalog/web-languages`, не `/catalog/web/web-languages`.
 
+## Контейнеры — ЖЁСТКОЕ ПРАВИЛО ВЁРСТКИ
+
+Проект использует **свою систему контейнеров** из `globals.css`. **ЗАПРЕЩЕНО** использовать Tailwind-утилиты (`max-w-7xl`, `max-w-3xl`, `mx-auto`, `px-4 sm:px-6` и т.д.) как обёртку страницы.
+
+### Два допустимых контейнера
+
+| Класс | Назначение | Определение в globals.css |
+|---|---|---|
+| `container-wide` | Широкие страницы: каталог, пак, билдер, кастомайзер, админка, биллинг | `padding-inline: 1.6rem → 36rem` по брейкпоинтам |
+| `container-narrow` | Текстовые/формы: аккаунт, логин, FAQ, пустые состояния | `max-width: 90rem` + адаптивные padding-inline |
+
+### Маппинг по страницам
+
+| Страница | Контейнер |
+|---|---|
+| Home | `container-wide` на каждую секцию |
+| Catalog | `container-wide` |
+| Pack View | `container-wide` |
+| Customize | `container-wide` |
+| Builder | `container-wide` |
+| Admin (основной) | `container-wide` |
+| Admin (unauthorized) | `container-narrow` |
+| Billing/Pricing | `container-wide` |
+| My Packs (основной) | `container-wide` |
+| My Packs (не залогинен) | `container-narrow` |
+| Account | `container-narrow` |
+| Loading/404/Empty | Тот же контейнер, что у основной страницы |
+
+### Запрещённые паттерны (на уровне страницы)
+
+```tsx
+// ❌ ЗАПРЕЩЕНО — ломает вёрстку:
+<div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+<div className="max-w-3xl mx-auto px-4 sm:px-6 py-20">
+<div className="max-w-md mx-auto px-4 sm:px-6 py-20">
+
+// ✅ ПРАВИЛЬНО:
+<div className="container-wide py-10">
+<div className="container-narrow py-20">
+```
+
+### Когда `max-w-*` допустим
+
+Только для **внутренних элементов** внутри контейнера (центрирование текста, модалки и т.д.):
+```tsx
+<div className="container-wide py-10">
+  <div className="mx-auto max-w-2xl text-center">  {/* ← внутри, ОК */}
+```
+
+Подробности: `LAYOUT_RULES.md`
+
 ## Чек-лист перед релизом фичи
 
 1. `npm run build` проходит

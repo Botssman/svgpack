@@ -92,7 +92,7 @@ export function MyPacks({ nav }: { nav: (v: View) => void }) {
 
   if (!user) {
     return (
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20 text-center">
+      <div className="container-narrow py-20 text-center">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-4">
           {lang === 'ru' ? 'Мои паки' : 'My Packs'}
         </h1>
@@ -113,7 +113,7 @@ export function MyPacks({ nav }: { nav: (v: View) => void }) {
   const buildsLeft = hasActiveSub ? '∞' : Math.max(0, 3 - user.freeBuildsUsed)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="container-wide py-10">
       <div className="mb-10">
         <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">
           {lang === 'ru' ? 'Личный кабинет' : 'Personal Account'}

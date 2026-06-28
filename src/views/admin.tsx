@@ -46,11 +46,11 @@ export function Admin() {
   }, [])
 
   if (!user || user.role !== 'admin') {
-    return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-slate-500">Admin only. Login as admin@iconhub.test</div>
+    return <div className="container-narrow py-20 text-center text-slate-500">Admin only. Login as admin@iconhub.test</div>
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+    <div className="container-wide py-10">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">{t.admin.title}</h1>
         <p className="mt-2 text-slate-600">{t.admin.subtitle}</p>
