@@ -16,6 +16,7 @@ export type CustomConfig = {
   color2: string
   strokeWidth: number
   size: number
+  padding: number       // 0..8 — отступ вокруг иконки
   background: BgShape
   bgColor: string
   rotation: number
@@ -55,6 +56,7 @@ export const DEFAULT_CONFIG: CustomConfig = {
   color2: '#38BDF8',
   strokeWidth: 1.75,
   size: 24,
+  padding: 0,
   background: 'none',
   bgColor: '#F1F5F9',
   rotation: 0,
@@ -391,18 +393,27 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   // <bgShape />
   // <g opacity>                          ← opacity wrapper
   //   <g [filter]>                       ← shadow/glow wrapper
-  //     <g transform="translate(12,12)"> ← centering wrapper (pulse only)
-  //       <g>                            ← SMIL target <g>
-  //         <animateTransform .../>      ← animates this <g>
-  //         <g transform="translate(-12,-12)"> ← un-center (pulse only)
-  //           <g transform="rotate(...)">← rotation
-  //             <paths.../>
+  //     <g padding>                      ← padding wrapper (translate + scale)
+  //       <g transform="translate(12,12)"> ← centering wrapper (pulse only)
+  //         <g>                          ← SMIL target <g>
+  //           <animateTransform .../>    ← animates this <g>
+  //           <g transform="translate(-12,-12)"> ← un-center (pulse only)
+  //             <g transform="rotate(...)">← rotation
+  //               <paths.../>
+  //             </g>
   //           </g>
   //         </g>
   //       </g>
   //     </g>
   //   </g>
   // </g>
+
+  const pad = cfg.padding ?? 0
+  // Padding: translate by pad, then scale so the icon fills (24-2*pad) of the 24px viewBox
+  const padScale = pad > 0 ? (24 - 2 * pad) / 24 : 1
+  const padWrapper = pad > 0
+    ? (inner: string) => `<g transform="translate(${pad},${pad}) scale(${padScale})">${inner}</g>`
+    : (inner: string) => inner
 
   const rotInner = needsG ? `<g transform="rotate(${rotation} 12 12)">${body}</g>` : body
 
@@ -420,8 +431,8 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   }
 
   const filterWrapper = filterAttr
-    ? `<g${filterAttr}>${animWrapper}</g>`
-    : animWrapper
+    ? `<g${filterAttr}>${padWrapper(animWrapper)}</g>`
+    : padWrapper(animWrapper)
   const opacityWrapper = opacityAttr
     ? `<g${opacityAttr}>${filterWrapper}</g>`
     : filterWrapper

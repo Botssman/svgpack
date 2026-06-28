@@ -522,13 +522,31 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                     <input
                       type="color"
                       value={editorCfg.color}
-                      onChange={(e) => updateField('color', e.target.value)}
+                      onChange={(e) => {
+                        const newColor = e.target.value
+                        if (editorCfg.colorGradient && editorCfg.colorGradientStops.length > 0) {
+                          const newStops = [...editorCfg.colorGradientStops]
+                          newStops[0] = { ...newStops[0], color: newColor }
+                          setEditorCfg({ ...editorCfg, color: newColor, colorGradientStops: newStops })
+                        } else {
+                          updateField('color', newColor)
+                        }
+                      }}
                       className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
                     />
                     <input
                       type="text"
                       value={editorCfg.color}
-                      onChange={(e) => updateField('color', e.target.value)}
+                      onChange={(e) => {
+                        const newColor = e.target.value
+                        if (editorCfg.colorGradient && editorCfg.colorGradientStops.length > 0) {
+                          const newStops = [...editorCfg.colorGradientStops]
+                          newStops[0] = { ...newStops[0], color: newColor }
+                          setEditorCfg({ ...editorCfg, color: newColor, colorGradientStops: newStops })
+                        } else {
+                          updateField('color', newColor)
+                        }
+                      }}
                       className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
                     />
                     <Toggle active={editorCfg.colorGradient} onClick={() => updateField('colorGradient', !editorCfg.colorGradient)}>
@@ -537,27 +555,61 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                   </div>
                   {editorCfg.colorGradient && (
                     <div className="space-y-2 pl-2 border-l-2 border-slate-100">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
-                        <input
-                          type="color"
-                          value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
-                          onChange={(e) => updateField('colorGradientStops', [
-                            { offset: 0, color: editorCfg.color },
-                            { offset: 100, color: e.target.value },
-                          ])}
-                          className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={editorCfg.colorGradientStops[1]?.color || editorCfg.color2}
-                          onChange={(e) => updateField('colorGradientStops', [
-                            { offset: 0, color: editorCfg.color },
-                            { offset: 100, color: e.target.value },
-                          ])}
-                          className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
-                        />
-                      </div>
+                      {/* Gradient stops editor */}
+                      {editorCfg.colorGradientStops.map((stop, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400 w-3">{idx + 1}</span>
+                          <input
+                            type="color"
+                            value={stop.color}
+                            onChange={(e) => {
+                              const newStops = [...editorCfg.colorGradientStops]
+                              newStops[idx] = { ...newStops[idx], color: e.target.value }
+                              updateField('colorGradientStops', newStops)
+                            }}
+                            className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
+                          />
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={stop.offset}
+                            onChange={(e) => {
+                              const newStops = [...editorCfg.colorGradientStops]
+                              newStops[idx] = { ...newStops[idx], offset: parseInt(e.target.value) }
+                              updateField('colorGradientStops', newStops)
+                            }}
+                            className="flex-1 accent-slate-900"
+                          />
+                          <span className="text-[10px] text-slate-500 w-7">{stop.offset}%</span>
+                          {editorCfg.colorGradientStops.length > 2 && idx > 0 && idx < editorCfg.colorGradientStops.length - 1 && (
+                            <button
+                              onClick={() => {
+                                const newStops = editorCfg.colorGradientStops.filter((_, i) => i !== idx)
+                                updateField('colorGradientStops', newStops)
+                              }}
+                              className="text-rose-400 hover:text-rose-600 text-xs leading-none"
+                            >×</button>
+                          )}
+                        </div>
+                      ))}
+                      {editorCfg.colorGradientStops.length < 6 && (
+                        <button
+                          onClick={() => {
+                            const stops = editorCfg.colorGradientStops
+                            // Insert a new stop at 50% between last two
+                            const lastOffset = stops[stops.length - 1]?.offset ?? 100
+                            const prevOffset = stops.length >= 2 ? stops[stops.length - 2]?.offset ?? 0 : 0
+                            const midOffset = Math.round((lastOffset + prevOffset) / 2)
+                            const newStops = [...stops, { offset: midOffset, color: '#94A3B8' }].sort((a, b) => a.offset - b.offset)
+                            updateField('colorGradientStops', newStops)
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline"
+                        >
+                          + {lang === 'ru' ? 'Добавить точку' : 'Add stop'}
+                        </button>
+                      )}
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
                         <input
@@ -574,7 +626,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                       {/* Preview */}
                       <div
                         className="h-6 rounded-md"
-                        style={{ background: `linear-gradient(${editorCfg.gradientAngle}deg, ${editorCfg.color}, ${editorCfg.colorGradientStops[1]?.color || editorCfg.color2})` }}
+                        style={{ background: `linear-gradient(${editorCfg.gradientAngle}deg, ${editorCfg.colorGradientStops.map(s => `${s.color} ${s.offset}%`).join(', ')})` }}
                       />
                     </div>
                   )}
@@ -699,6 +751,19 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                 </div>
               </Field>
 
+              {/* Отступ / Padding */}
+              <Field label={`${lang === 'ru' ? 'Отступ' : 'Padding'}: ${editorCfg.padding ?? 0}px`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={8}
+                  step={0.5}
+                  value={editorCfg.padding ?? 0}
+                  onChange={(e) => updateField('padding', parseFloat(e.target.value))}
+                  className="w-full accent-slate-900"
+                />
+              </Field>
+
               {/* Фон / Background */}
               <Field label={lang === 'ru' ? 'Фон' : 'Background'}>
                 <div className="flex gap-2 flex-wrap">
@@ -727,13 +792,31 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                       <input
                         type="color"
                         value={editorCfg.bgColor}
-                        onChange={(e) => updateField('bgColor', e.target.value)}
+                        onChange={(e) => {
+                          const newBg = e.target.value
+                          if (editorCfg.bgGradient && editorCfg.bgGradientStops.length > 0) {
+                            const newStops = [...editorCfg.bgGradientStops]
+                            newStops[0] = { ...newStops[0], color: newBg }
+                            setEditorCfg({ ...editorCfg, bgColor: newBg, bgGradientStops: newStops })
+                          } else {
+                            updateField('bgColor', newBg)
+                          }
+                        }}
                         className="w-10 h-10 rounded-md border border-slate-200 cursor-pointer"
                       />
                       <input
                         type="text"
                         value={editorCfg.bgColor}
-                        onChange={(e) => updateField('bgColor', e.target.value)}
+                        onChange={(e) => {
+                          const newBg = e.target.value
+                          if (editorCfg.bgGradient && editorCfg.bgGradientStops.length > 0) {
+                            const newStops = [...editorCfg.bgGradientStops]
+                            newStops[0] = { ...newStops[0], color: newBg }
+                            setEditorCfg({ ...editorCfg, bgColor: newBg, bgGradientStops: newStops })
+                          } else {
+                            updateField('bgColor', newBg)
+                          }
+                        }}
                         className="flex-1 px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
                       />
                     </div>
@@ -743,27 +826,60 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                     </Toggle>
                     {editorCfg.bgGradient && (
                       <div className="space-y-2 pl-2 border-l-2 border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Цвет 2' : 'Color 2'}</span>
-                          <input
-                            type="color"
-                            value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
-                            onChange={(e) => updateField('bgGradientStops', [
-                              { offset: 0, color: editorCfg.bgColor },
-                              { offset: 100, color: e.target.value },
-                            ])}
-                            className="w-8 h-8 rounded-md border border-slate-200 cursor-pointer"
-                          />
-                          <input
-                            type="text"
-                            value={editorCfg.bgGradientStops[1]?.color || '#CBD5E1'}
-                            onChange={(e) => updateField('bgGradientStops', [
-                              { offset: 0, color: editorCfg.bgColor },
-                              { offset: 100, color: e.target.value },
-                            ])}
-                            className="flex-1 px-2 py-1.5 rounded-md border border-slate-200 text-xs font-mono"
-                          />
-                        </div>
+                        {/* BG gradient stops editor */}
+                        {editorCfg.bgGradientStops.map((stop, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-slate-400 w-3">{idx + 1}</span>
+                            <input
+                              type="color"
+                              value={stop.color}
+                              onChange={(e) => {
+                                const newStops = [...editorCfg.bgGradientStops]
+                                newStops[idx] = { ...newStops[idx], color: e.target.value }
+                                updateField('bgGradientStops', newStops)
+                              }}
+                              className="w-7 h-7 rounded border border-slate-200 cursor-pointer"
+                            />
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={stop.offset}
+                              onChange={(e) => {
+                                const newStops = [...editorCfg.bgGradientStops]
+                                newStops[idx] = { ...newStops[idx], offset: parseInt(e.target.value) }
+                                updateField('bgGradientStops', newStops)
+                              }}
+                              className="flex-1 accent-slate-900"
+                            />
+                            <span className="text-[10px] text-slate-500 w-7">{stop.offset}%</span>
+                            {editorCfg.bgGradientStops.length > 2 && idx > 0 && idx < editorCfg.bgGradientStops.length - 1 && (
+                              <button
+                                onClick={() => {
+                                  const newStops = editorCfg.bgGradientStops.filter((_, i) => i !== idx)
+                                  updateField('bgGradientStops', newStops)
+                                }}
+                                className="text-rose-400 hover:text-rose-600 text-xs leading-none"
+                              >×</button>
+                            )}
+                          </div>
+                        ))}
+                        {editorCfg.bgGradientStops.length < 6 && (
+                          <button
+                            onClick={() => {
+                              const stops = editorCfg.bgGradientStops
+                              const lastOffset = stops[stops.length - 1]?.offset ?? 100
+                              const prevOffset = stops.length >= 2 ? stops[stops.length - 2]?.offset ?? 0 : 0
+                              const midOffset = Math.round((lastOffset + prevOffset) / 2)
+                              const newStops = [...stops, { offset: midOffset, color: '#CBD5E1' }].sort((a, b) => a.offset - b.offset)
+                              updateField('bgGradientStops', newStops)
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 underline"
+                          >
+                            + {lang === 'ru' ? 'Добавить точку' : 'Add stop'}
+                          </button>
+                        )}
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-500 w-14">{lang === 'ru' ? 'Угол' : 'Angle'}</span>
                           <input
@@ -779,7 +895,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                         </div>
                         <div
                           className="h-6 rounded-md"
-                          style={{ background: `linear-gradient(${editorCfg.bgGradientAngle}deg, ${editorCfg.bgColor}, ${editorCfg.bgGradientStops[1]?.color || '#CBD5E1'})` }}
+                          style={{ background: `linear-gradient(${editorCfg.bgGradientAngle}deg, ${editorCfg.bgGradientStops.map(s => `${s.color} ${s.offset}%`).join(', ')})` }}
                         />
                       </div>
                     )}
