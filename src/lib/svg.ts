@@ -98,60 +98,61 @@ function computeDashArray(style: StrokeStyle, strokeWidth: number): string {
 }
 
 /**
- * Generate CSS animation string for the given config.
+ * Generate SMIL animation elements (<animate>, <animateTransform>) for SVG.
+ * These work natively in SVG without CSS, including inside dangerouslySetInnerHTML.
  */
-function animationCSS(cfg: CustomConfig, id: string): string {
+function smilAnimation(cfg: CustomConfig): string {
   if (cfg.animation === 'none') return ''
   const dur = cfg.animDuration
-  const easing = cfg.animEasing === 'ease-in-out' ? 'ease-in-out' : cfg.animEasing
   const delay = cfg.animDelay
-  const iter = cfg.animIterations === 0 ? 'infinite' : String(cfg.animIterations)
-  const name = `anim-${id}`
-  let keyframes = ''
-  let transform = ''
+  const iter = cfg.animIterations === 0 ? 'indefinite' : String(cfg.animIterations)
+  // SMIL easing: CSS easing names map to calcMode + keySplines
+  // For simplicity we use a common easing for most, and linear for blink
+  const easing = cfg.animEasing
+  const calcMode = easing === 'linear' ? 'linear' : 'spline'
+  // Default spline for "ease": 0.42 0 1 1 (ease-out-ish)
+  const keySplines = easing === 'linear' ? undefined
+    : easing === 'ease' ? '0.42 0 0.58 1'
+    : easing === 'ease-in' ? '0.42 0 1 1'
+    : easing === 'ease-out' ? '0 0 0.58 1'
+    : '0.42 0 0.58 1' // ease-in-out
+  const splineAttr = keySplines ? ` calcMode="spline" keySplines="${keySplines}"` : ''
+  const begin = delay > 0 ? `${delay}s` : '0s'
+
   switch (cfg.animation) {
     case 'spin':
-      keyframes = `@keyframes ${name}{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Continuous rotation around center (12,12)
+      return `<animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr.replace('spline', 'linear')}/>`
     case 'pulse':
-      keyframes = `@keyframes ${name}{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Scale up and down from center
+      return `<animateTransform attributeName="transform" type="scale" values="1;1.15;1" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}" additive="sum"${splineAttr}/>`
     case 'bounce':
-      keyframes = `@keyframes ${name}{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Translate Y up and down
+      return `<animateTransform attributeName="transform" type="translate" values="0 0;0 -3;0 0" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
     case 'shake':
-      keyframes = `@keyframes ${name}{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Translate X left and right
+      return `<animateTransform attributeName="transform" type="translate" values="0;-2;0;2;0" keyTimes="0;0.25;0.5;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
     case 'wobble':
-      keyframes = `@keyframes ${name}{0%,100%{transform:rotate(0)}25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Rotate small angles back and forth
+      return `<animateTransform attributeName="transform" type="rotate" values="0 12 12;-5 12 12;5 12 12;0 12 12" keyTimes="0;0.25;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
     case 'swing':
-      keyframes = `@keyframes ${name}{0%,100%{transform:rotate(0)}50%{transform:rotate(10deg)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter} alternate`
-      break
+      // Rotate back and forth
+      return `<animateTransform attributeName="transform" type="rotate" values="0 12 12;10 12 12;0 12 12" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
     case 'fade':
-      keyframes = `@keyframes ${name}{0%,100%{opacity:1}50%{opacity:0.2}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Opacity pulse
+      return `<animate attributeName="opacity" values="1;0.2;1" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
     case 'float':
-      keyframes = `@keyframes ${name}{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Gentle vertical float
+      return `<animateTransform attributeName="transform" type="translate" values="0 0;0 -2;0 0" keyTimes="0;0.5;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
     case 'blink':
-      keyframes = `@keyframes ${name}{0%,100%{opacity:1}50%{opacity:0}}`
-      transform = `animation:${name} ${dur}s step-end ${delay}s ${iter}`
-      break
+      // Hard blink (step)
+      return `<animate attributeName="opacity" values="1;1;0;0;1" keyTimes="0;0.45;0.5;0.95;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}" calcMode="discrete"/>`
     case 'slide':
-      keyframes = `@keyframes ${name}{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}`
-      transform = `animation:${name} ${dur}s ${easing} ${delay}s ${iter}`
-      break
+      // Horizontal slide
+      return `<animateTransform attributeName="transform" type="translate" values="0;2;0;-2;0" keyTimes="0;0.25;0.5;0.75;1" dur="${dur}s" begin="${begin}" repeatCount="${iter}"${splineAttr}/>`
+    default:
+      return ''
   }
-  return `<style>${keyframes}</style>`
 }
 
 /**
@@ -352,18 +353,17 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   // 7. Opacity
   const opacityAttr = cfg.opacity < 1 ? ` opacity="${cfg.opacity}"` : ''
 
-  // 8. Animation
-  const animStyle = animationCSS(cfg, animId)
-  const animClass = cfg.animation !== 'none' ? ` class="anim-${animId}"` : ''
+  // 8. Animation (SMIL — works natively in SVG, no CSS needed)
+  const animElements = smilAnimation(cfg)
 
-  const inner = `${defsTag}${bgShape}${needsG ? `<g transform="rotate(${rotation} 12 12)">` : ''}${body}${needsG ? '</g>' : ''}`
+  const inner = `${defsTag}${bgShape}${needsG ? `<g transform="rotate(${rotation} 12 12)">` : ''}${body}${needsG ? '</g>' : ''}${animElements}`
 
   const strokeAttr = cfg.colorGradient ? `stroke="url(#${gradientId})"` : `stroke="${cfg.color}"`
   const lineCapAttr = `stroke-linecap="${cfg.lineCap}"`
   const lineJoinAttr = `stroke-linejoin="${cfg.lineJoin}"`
   const dashAttr = dashArray ? ` stroke-dasharray="${dashArray}"` : ''
 
-  return `${animStyle}<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" ${lineCapAttr} ${lineJoinAttr}${dashAttr}${opacityAttr}${filterAttr}${animClass}>${inner}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" ${lineCapAttr} ${lineJoinAttr}${dashAttr}${opacityAttr}${filterAttr}>${inner}</svg>`
 }
 
 /**
