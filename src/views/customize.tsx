@@ -263,57 +263,88 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
     } catch {}
   }
 
-  const handlePay = async () => {
-    if (!user) {
-      toast({ title: t.toast.error, description: 'Login required' })
-      nav({ name: 'account' })
-      return
-    }
-    if (!hasActiveSub && user.credits < COST) {
-      toast({ title: t.toast.noCredits })
-      nav({ name: 'billing' })
-      return
-    }
-    if (!hasActiveSub) {
-      const res = await fetch('/api/billing/onetime', {
+  // Скачать пак с кастомизацией через POST (конфиг в теле, не в URL)
+  const downloadCustomizedPack = async () => {
+    if (!pack) return
+    const cfgMap = buildCfgMap()
+    try {
+      const res = await fetch('/api/download/pack', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: user.email,
-          kind: 'icon',
-          refId: editingId || pack?.id || 'unknown',
-          amount: 0.49,
-          creditsCost: COST,
+          slug: pack.slug,
+          cfg: cfgMap ? undefined : baseCfg,
+          cfgMap: cfgMap ?? undefined,
         }),
       })
-      if (res.ok) {
-        await refresh()
-        await savePackToAccount()
-        toast({ title: t.toast.paid })
+      if (!res.ok) {
+        toast({ title: t.toast.error })
+        return
       }
-    } else {
-      await savePackToAccount()
-      toast({ title: t.toast.paid })
-    }
-    const cfgMap = buildCfgMap()
-    if (cfgMap) {
-      const params = new URLSearchParams({ slug: pack!.slug, cfgMap: JSON.stringify(cfgMap) })
-      window.open(`/api/download/pack?${params.toString()}`, '_blank')
-    } else {
-      const params = new URLSearchParams({ slug: pack!.slug, cfg: JSON.stringify(baseCfg) })
-      window.open(`/api/download/pack?${params.toString()}`, '_blank')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${pack.slug}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast({ title: t.toast.error })
     }
   }
 
-  const handleDownloadFree = () => {
-    const cfgMap = buildCfgMap()
-    if (cfgMap) {
-      const params = new URLSearchParams({ slug: pack!.slug, cfgMap: JSON.stringify(cfgMap) })
-      window.open(`/api/download/pack?${params.toString()}`, '_blank')
-    } else {
-      const params = new URLSearchParams({ slug: pack!.slug, cfg: JSON.stringify(baseCfg) })
-      window.open(`/api/download/pack?${params.toString()}`, '_blank')
+  const handlePay = async () => {
+    if (!user) {
+      toast({ title: t.toast.error, description: lang === 'ru' ? 'Войдите в аккаунт' : 'Login required' })
+      nav({ name: 'account' })
+      return
     }
+    if (!pack) return
+
+    setSaving(true)
+    try {
+      if (!hasActiveSub) {
+        if (user.credits < COST) {
+          toast({ title: t.toast.noCredits })
+          nav({ name: 'billing' })
+          return
+        }
+        const res = await fetch('/api/billing/onetime', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-user-email': user.email },
+          body: JSON.stringify({
+            email: user.email,
+            kind: 'icon',
+            refId: editingId || pack.id || 'unknown',
+            amount: 0.49,
+            creditsCost: COST,
+          }),
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          toast({ title: data.error || t.toast.error })
+          return
+        }
+        await refresh()
+      }
+
+      // Сохраняем пак в ЛК
+      await savePackToAccount()
+
+      // Скачиваем с кастомизацией
+      await downloadCustomizedPack()
+
+      toast({ title: t.toast.paid })
+    } catch (e) {
+      console.error('handlePay error:', e)
+      toast({ title: t.toast.error })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDownloadFree = async () => {
+    await downloadCustomizedPack()
     toast({ title: t.toast.downloaded })
   }
 
