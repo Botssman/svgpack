@@ -28,12 +28,13 @@ export async function POST(req: NextRequest) {
     return defaultSvg(ic)
   }
 
-  const files = pack.icons.map((ic) => ({
+  const validIcons = (pack.icons || []).filter((ic) => ic?.slug)
+  const files = validIcons.map((ic) => ({
     name: `${pack.slug}/${ic.slug}.svg`,
     content: renderForIcon(ic),
   }))
 
-  const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${pack.icons.map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
+  const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${validIcons.map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
   files.push({ name: `${pack.slug}/sprite.svg`, content: sprite })
 
   const readme = `# ${pack.nameEn}\n\n${pack.descEn}\n\nIcons: ${pack.icons.length}\nLicense: Free for personal & commercial use.\n`
@@ -88,13 +89,14 @@ export async function GET(req: NextRequest) {
     return defaultSvg(ic)
   }
 
-  const files = pack.icons.map((ic) => ({
+  const validIcons = (pack.icons || []).filter((ic) => ic?.slug)
+  const files = validIcons.map((ic) => ({
     name: `${pack.slug}/${ic.slug}.svg`,
     content: renderForIcon(ic),
   }))
 
   // Add a sprite file (uses raw icon svg, not customized — sprite is a reference)
-  const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${pack.icons.map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
+  const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${validIcons.map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
   files.push({ name: `${pack.slug}/sprite.svg`, content: sprite })
 
   // Add README

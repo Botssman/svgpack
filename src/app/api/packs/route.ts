@@ -21,12 +21,12 @@ export async function GET(req: NextRequest) {
       filtered = filtered
         .map((p) => ({
           ...p,
-          icons: p.icons.filter(
+          icons: (p.icons || []).filter(
             (ic) =>
-              ic.slug.toLowerCase().includes(q) ||
-              ic.nameRu.toLowerCase().includes(q) ||
-              ic.nameEn.toLowerCase().includes(q) ||
-              ic.keywords.toLowerCase().includes(q),
+              (ic?.slug?.toLowerCase() ?? '').includes(q) ||
+              (ic?.nameRu?.toLowerCase() ?? '').includes(q) ||
+              (ic?.nameEn?.toLowerCase() ?? '').includes(q) ||
+              (ic?.keywords?.toLowerCase() ?? '').includes(q),
           ),
         }))
         .filter((p) => p.icons.length > 0)

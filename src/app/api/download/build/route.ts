@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     return { name: `${name || 'my-pack'}/${ic.slug}.svg`, content: svg }
   }).filter(Boolean) as { name: string; content: string }[]
 
-  const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${icons.map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
+  const sprite = `<svg xmlns="http://www.w3.org/2000/svg" style="display:none">${icons.filter((ic) => ic?.slug).map((ic) => `<symbol id="${ic.slug}" viewBox="${ic.viewBox}">${ic.svg}</symbol>`).join('')}</svg>`
   files.push({ name: `${name || 'my-pack'}/sprite.svg`, content: sprite })
 
   const zipBase64 = makeZip(files)
