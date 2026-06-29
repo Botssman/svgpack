@@ -3,8 +3,7 @@ import JSZip from 'jszip'
 
 /**
  * Dictionary for translating English icon terms to Russian.
- * Covers common icon categories: UI, arrows, people, objects, nature, etc.
- * Used to auto-generate nameRu from filename parts.
+ * Used as fallback when no explicit Russian name is provided.
  */
 const EN_RU: Record<string, string> = {
   // UI / General
@@ -47,14 +46,14 @@ const EN_RU: Record<string, string> = {
   phone: 'телефон', call: 'звонок', video: 'видео', camera: 'камера',
   microphone: 'микрофон', speaker: 'динамик', volume: 'громкость',
   bell: 'колокольчик', notification: 'уведомление', alert: 'оповещение',
-  inbox: 'входящие', outbox: 'исходящие', reply: 'ответ', forward: 'переслать',
+  inbox: 'входящие', outbox: 'исходящие', reply: 'ответ',
 
   // Objects
   home: 'дом', house: 'дом', building: 'здание', office: 'офис',
   store: 'магазин', shop: 'магазин', cart: 'корзина', basket: 'корзина',
   bag: 'сумка', box: 'коробка', package: 'посылка', gift: 'подарок',
   key: 'ключ', lock: 'замок', unlock: 'разблокировать', shield: 'щит',
-  wallet: 'кошелёк', credit: 'кредит', card: 'карта', money: 'деньги',
+  wallet: 'кошелёк', credit: 'кредит', money: 'деньги',
   coin: 'монета', dollar: 'доллар', euro: 'евро', ruble: 'рубль',
   clock: 'часы', time: 'время', calendar: 'календарь', date: 'дата',
   alarm: 'будильник', timer: 'таймер', stopwatch: 'секундомер',
@@ -89,13 +88,13 @@ const EN_RU: Record<string, string> = {
   dot: 'точка', line: 'линия', dash: 'тире', wave: 'волна',
 
   // Nature & Weather
-  sun: 'солнце', moon: 'луна', cloud: 'облако', rain: 'дождь',
+  sun: 'солнце', moon: 'луна', rain: 'дождь',
   snow: 'снег', wind: 'ветер', storm: 'шторм', lightning: 'молния',
   fire: 'огонь', water: 'вода', drop: 'капля', leaf: 'лист',
   tree: 'дерево', flower: 'цветок', mountain: 'гора', sea: 'море',
   earth: 'земля', globe: 'глобус', world: 'мир', map: 'карта',
   compass: 'компас', navigation: 'навигация', location: 'местоположение',
-  pin: 'булавка', marker: 'маркер', route: 'маршрут',
+  pin: 'булавка', route: 'маршрут',
 
   // Transport
   car: 'машина', bus: 'автобус', train: 'поезд', plane: 'самолёт',
@@ -161,29 +160,42 @@ const EN_RU: Record<string, string> = {
   face: 'лицо', emoji: 'эмодзи',
 }
 
-/**
- * Translate a human-readable English name to Russian using the dictionary.
- * e.g. "Arrow Right" → "Стрелка Право", "Shopping Cart" → "Корзина"
- * Falls back to the English word if not found in dictionary.
- */
 function translateToRu(words: string[]): string {
-  return words
-    .map(word => {
-      const lower = word.toLowerCase()
-      return EN_RU[lower] || word
-    })
-    .join(' ')
+  return words.map(word => EN_RU[word.toLowerCase()] || word).join(' ')
+}
+
+/**
+ * Supported metadata JSON formats inside the ZIP archive:
+ *
+ * 1. Simple map:  { "icon-slug": "Русское название" }
+ * 2. Full map:    { "icon-slug": { "nameRu": "...", "nameEn": "...", "keywords": "..." } }
+ *
+ * The file can be named: icons.json, meta.json, или _icons.json
+ */
+type MetaValue = string | { nameRu?: string; nameEn?: string; keywords?: string }
+type MetaMap = Record<string, MetaValue>
+
+function parseMetaJson(raw: string): MetaMap {
+  const parsed = JSON.parse(raw)
+  if (typeof parsed !== 'object' || !parsed) return {}
+  return parsed as MetaMap
+}
+
+function getMetaField(val: MetaValue | undefined, field: 'nameRu' | 'nameEn' | 'keywords'): string | undefined {
+  if (!val) return undefined
+  if (typeof val === 'string') return field === 'nameRu' ? val : undefined
+  return val[field]
 }
 
 /**
  * POST /api/admin/upload-icons
  *
  * Accepts a ZIP archive with SVG files (flat or in subfolders).
- * Extracts every .svg file, reads its content, and returns structured
- * icon data (slug, nameRu, nameEn, keywords, svg, viewBox) so the
- * frontend can preview and then save them to a pack.
- *
- * Body: multipart/form-data with field "file" = the ZIP archive
+ * Russian names are resolved in this priority:
+ *   1. icons.json / meta.json in the archive (most control)
+ *   2. Filename convention: "arrow-right--стрелка-вправо.svg" (double dash)
+ *   3. <title> tag inside the SVG
+ *   4. Auto-translation from dictionary (fallback)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -201,6 +213,40 @@ export async function POST(req: NextRequest) {
     const buffer = await file.arrayBuffer()
     const zip = await JSZip.loadAsync(buffer)
 
+    // ── 1. Look for metadata JSON file ──────────────────────────────
+    let meta: MetaMap = {}
+    const metaNames = ['icons.json', 'meta.json', '_icons.json']
+    for (const name of metaNames) {
+      // Check root and any subfolder
+      zip.forEach((path, entry) => {
+        if (!entry.dir && path.endsWith(name)) {
+          metaNames.push(path) // will be found below
+        }
+      })
+    }
+    for (const name of [...new Set(metaNames)]) {
+      const entry = zip.file(name)
+      if (entry) {
+        try {
+          const raw = await entry.async('string')
+          meta = parseMetaJson(raw)
+          console.log(`[upload-icons] Found metadata file: ${name} (${Object.keys(meta).length} entries)`)
+          break
+        } catch {
+          console.warn(`[upload-icons] Failed to parse ${name}, skipping`)
+        }
+      }
+    }
+
+    // ── 2. Collect SVG files ────────────────────────────────────────
+    const svgFiles: { path: string; zipEntry: JSZip.JSZipObject }[] = []
+    zip.forEach((relativePath, zipEntry) => {
+      if (!zipEntry.dir && relativePath.toLowerCase().endsWith('.svg')) {
+        svgFiles.push({ path: relativePath, zipEntry })
+      }
+    })
+    svgFiles.sort((a, b) => a.path.localeCompare(b.path))
+
     const icons: {
       slug: string
       nameRu: string
@@ -210,75 +256,78 @@ export async function POST(req: NextRequest) {
       viewBox: string
     }[] = []
 
-    // Collect all .svg files (including nested in folders)
-    const svgFiles: { path: string; zipEntry: JSZip.JSZipObject }[] = []
-    zip.forEach((relativePath, zipEntry) => {
-      if (!zipEntry.dir && relativePath.toLowerCase().endsWith('.svg')) {
-        svgFiles.push({ path: relativePath, zipEntry })
-      }
-    })
-
-    // Sort by path for deterministic order
-    svgFiles.sort((a, b) => a.path.localeCompare(b.path))
-
     for (const { path, zipEntry } of svgFiles) {
       const svgContent = await zipEntry.async('string')
 
-      // Extract viewBox from the <svg> tag, default to "0 0 24 24"
+      // Extract viewBox
       let viewBox = '0 0 24 24'
       const vbMatch = svgContent.match(/viewBox\s*=\s*"([^"]+)"/)
-      if (vbMatch) {
-        viewBox = vbMatch[1]
-      }
+      if (vbMatch) viewBox = vbMatch[1]
 
-      // Extract inner SVG content (everything inside <svg>...</svg>)
+      // Extract inner SVG
       let innerSvg = svgContent
       const innerMatch = svgContent.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
       if (innerMatch) {
         innerSvg = innerMatch[1].trim()
       } else {
-        // If no <svg> wrapper, use the whole content as inner
         innerSvg = svgContent.trim()
       }
 
-      // Generate slug from filename (without extension and path)
+      // ── Parse filename ──────────────────────────────────────────
       const fileName = path.split('/').pop() || 'icon'
       const rawName = fileName.replace(/\.svg$/i, '')
 
-      // Split filename into words
-      const words = rawName.split(/[-_\s]+/).filter(w => w.length > 0)
+      // Check for double-dash convention: "arrow-right--стрелка-вправо"
+      let slugPart = rawName
+      let ruFromFilename: string | undefined
+      if (rawName.includes('--')) {
+        const parts = rawName.split('--')
+        slugPart = parts[0]
+        ruFromFilename = parts.slice(1).join('--').trim()
+      }
 
-      // English name: Title Case
-      const nameEn = words
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ')
+      // Check <title> tag inside SVG
+      let ruFromTitle: string | undefined
+      const titleMatch = svgContent.match(/<title[^>]*>([^<]+)<\/title>/i)
+      if (titleMatch) {
+        const titleText = titleMatch[1].trim()
+        // Only use as Russian name if it contains Cyrillic
+        if (/[а-яёА-ЯЁ]/.test(titleText)) {
+          ruFromTitle = titleText
+        }
+      }
 
-      // Russian name: translate each word via dictionary
-      const nameRu = translateToRu(
-        words.map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      )
-
-      // Generate slug: lowercase, dashes
-      const slug = rawName
+      // Generate slug
+      const slug = slugPart
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
 
-      // Keywords: both English and Russian terms
-      const enKeywords = words.map(w => w.toLowerCase()).filter(w => w.length > 1)
-      const ruKeywords = words
-        .map(w => EN_RU[w.toLowerCase()])
-        .filter((w): w is string => !!w && w.length > 1)
-      const allKeywords = [...new Set([...enKeywords, ...ruKeywords])].join(', ')
+      // Split slug into words for English name
+      const words = slugPart.split(/[-_\s]+/).filter(w => w.length > 0)
+      const nameEn = getMetaField(meta[slug], 'nameEn') || words
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ')
 
-      icons.push({
-        slug,
-        nameRu,
-        nameEn,
-        keywords: allKeywords,
-        svg: innerSvg,
-        viewBox,
-      })
+      // Russian name — priority: meta.json → filename → <title> → dictionary
+      const nameRu =
+        getMetaField(meta[slug], 'nameRu') ||
+        ruFromFilename ||
+        ruFromTitle ||
+        translateToRu(words.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
+
+      // Keywords — priority: meta.json → combined EN+RU from filename
+      const metaKeywords = getMetaField(meta[slug], 'keywords')
+      let keywords: string
+      if (metaKeywords) {
+        keywords = metaKeywords
+      } else {
+        const enKw = words.map(w => w.toLowerCase()).filter(w => w.length > 1)
+        const ruKw = words.map(w => EN_RU[w.toLowerCase()]).filter((w): w is string => !!w && w.length > 1)
+        keywords = [...new Set([...enKw, ...ruKw])].join(', ')
+      }
+
+      icons.push({ slug, nameRu, nameEn, keywords, svg: innerSvg, viewBox })
     }
 
     return NextResponse.json({
