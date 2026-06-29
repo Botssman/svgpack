@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
+import Link from 'next/link'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
-import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 import { CATEGORIES } from '@/lib/categories'
 
@@ -20,7 +20,7 @@ type Pack = {
   icons: { id: string; slug: string; nameRu: string; nameEn: string; keywords: string; svg: string }[]
 }
 
-export function Catalog({ nav }: { nav: (v: View) => void }) {
+export function Catalog() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const [packs, setPacks] = useState<Pack[]>([])
@@ -165,8 +165,8 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
               className="group overflow-hidden rounded-2xl border border-neutral-200 bg-white transition-all hover:-translate-y-0.5 hover:shadow-lift hover:border-neutral-300"
             >
               {/* Icon preview grid */}
-              <button
-                onClick={() => nav({ name: 'pack', slug: pack.slug })}
+              <Link
+                href={`/catalog/${pack.slug}`}
                 className="grid w-full grid-cols-6 gap-2 bg-neutral-50/60 p-5 transition-colors hover:bg-neutral-100"
               >
                 {pack.icons.slice(0, 12).map((ic) => (
@@ -177,7 +177,7 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
                     <IconView innerSvg={ic.svg} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={20} />
                   </div>
                 ))}
-              </button>
+              </Link>
               <div className="p-5">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
@@ -198,12 +198,12 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
                   {lang === 'ru' ? pack.descRu : pack.descEn}
                 </p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => nav({ name: 'pack', slug: pack.slug })}
-                    className="flex-1 rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
+                  <Link
+                    href={`/catalog/${pack.slug}`}
+                    className="flex flex-1 items-center justify-center rounded-lg bg-neutral-900 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
                   >
                     {t.catalog.viewPack}
-                  </button>
+                  </Link>
                   <button
                     onClick={() => handleDownload(pack.slug)}
                     className="rounded-lg border border-neutral-200 px-3 py-2 text-sm font-medium transition-colors hover:bg-neutral-50"

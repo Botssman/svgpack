@@ -2,7 +2,6 @@
 
 import { use } from 'react'
 import { PackView } from '@/views/pack-view'
-import { useNav } from '@/lib/navigation'
 
 export default function PackPage({
   params,
@@ -10,6 +9,5 @@ export default function PackPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = use(params)
-  const nav = useNav()
-  return <PackView slug={slug} nav={nav} />
+  return <PackView slug={slug} />
 }

@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useBuild } from '@/lib/build-store'
-import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
 
 type Icon = { id: string; slug: string; nameRu: string; nameEn: string; keywords: string; svg: string; viewBox: string }
@@ -12,7 +12,7 @@ type Pack = {
   category: string; style: string; tags: string; isFree: boolean; icons: Icon[]
 }
 
-export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }) {
+export function PackView({ slug }: { slug: string }) {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const { add, has } = useBuild()
@@ -43,12 +43,12 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
       <div className="text-4xl mb-4">🔍</div>
       <h2 className="text-lg font-semibold text-slate-900 mb-2">Пак не найден</h2>
       <p className="text-sm text-slate-500 mb-4">Slug: <code className="px-2 py-0.5 bg-slate-100 rounded">{slug}</code></p>
-      <button
-        onClick={() => nav({ name: 'catalog' })}
-        className="px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700"
+      <Link
+        href="/catalog"
+        className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700"
       >
         Вернуться в каталог
-      </button>
+      </Link>
     </div>
   )
 
@@ -75,12 +75,12 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
 
   return (
     <div className="container-wide py-10">
-      <button
-        onClick={() => nav({ name: 'catalog' })}
-        className="text-sm text-slate-600 hover:text-slate-900 mb-6"
+      <Link
+        href="/catalog"
+        className="inline-block text-sm text-slate-600 hover:text-slate-900 mb-6"
       >
         {t.packView.back}
-      </button>
+      </Link>
 
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
@@ -95,12 +95,12 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
           </div>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => nav({ name: 'customize', packSlug: pack.slug })}
-            className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
+          <Link
+            href={`/catalog/${pack.slug}/customize`}
+            className="inline-flex items-center justify-center px-4 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50 transition-colors"
           >
             {t.packView.customizePack}
-          </button>
+          </Link>
           <button
             onClick={handleDownload}
             className="px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-colors"
