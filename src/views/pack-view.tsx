@@ -20,14 +20,37 @@ export function PackView({ slug, nav }: { slug: string; nav: (v: View) => void }
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/packs/${slug}`).then(r => r.json()).then(d => {
-      setPack(d.pack)
-      setLoading(false)
-    })
+    setLoading(true)
+    fetch(`/api/packs/${slug}`)
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(d => {
+        setPack(d.pack)
+        setLoading(false)
+      })
+      .catch(e => {
+        console.error('[PackView] fetch error:', e)
+        setPack(null)
+        setLoading(false)
+      })
   }, [slug])
 
   if (loading) return <div className="container-wide py-20"><div className="h-64 bg-slate-100 animate-pulse rounded-xl" /></div>
-  if (!pack) return <div className="container-wide py-20 text-slate-500">404</div>
+  if (!pack) return (
+    <div className="container-wide py-20 text-center">
+      <div className="text-4xl mb-4">🔍</div>
+      <h2 className="text-lg font-semibold text-slate-900 mb-2">Пак не найден</h2>
+      <p className="text-sm text-slate-500 mb-4">Slug: <code className="px-2 py-0.5 bg-slate-100 rounded">{slug}</code></p>
+      <button
+        onClick={() => nav({ name: 'catalog' })}
+        className="px-4 py-2 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700"
+      >
+        Вернуться в каталог
+      </button>
+    </div>
+  )
 
   const handleDownload = () => {
     window.open(`/api/download/pack?slug=${pack.slug}`, '_blank')
