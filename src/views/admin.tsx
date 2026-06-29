@@ -282,17 +282,45 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
     setUploadedIcons(prev => prev.filter((_, i) => i !== index))
   }
 
+  const savePackAndReturnId = async (): Promise<string | null> => {
+    if (!isNew) return pack.id
+    // Auto-save new pack first
+    if (!form.slug || !form.nameRu) {
+      toast({ title: 'Заполните slug и название перед добавлением иконок' })
+      return null
+    }
+    const res = await fetch('/api/admin/packs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      toast({ title: t.toast.saved })
+      onSaved()
+      return data.pack?.id || data.id || null
+    }
+    toast({ title: 'Ошибка создания пака' })
+    return null
+  }
+
   const saveAllUploadedIcons = async () => {
     if (uploadedIcons.length === 0) return
     setSavingIcons(true)
     try {
+      let packId = pack.id
+      if (!packId) {
+        const id = await savePackAndReturnId()
+        if (!id) { setSavingIcons(false); return }
+        packId = id
+      }
       let added = 0
       let errors = 0
       for (const icon of uploadedIcons) {
         const res = await fetch('/api/admin/icons', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...icon, packId: pack.id }),
+          body: JSON.stringify({ ...icon, packId }),
         })
         if (res.ok) added++
         else errors++
@@ -375,147 +403,150 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
         </button>
       </div>
 
-      {/* Icons in pack */}
-      {!isNew && (
+      {/* Icons section — always show for existing packs, and ZIP upload for new too */}
+      {!isNew && pack.icons && pack.icons.length > 0 && (
         <div className="pt-5 border-t border-slate-200">
-          {pack.icons && pack.icons.length > 0 && (
-            <>
-              <h4 className="font-medium text-slate-900 mb-3">{t.admin.icons} ({pack.icons.length})</h4>
-              <div className="grid grid-cols-6 gap-2 mb-4">
-                {pack.icons.map((ic) => (
-                  <div key={ic.id} className="aspect-square flex items-center justify-center bg-slate-50 rounded-md border border-slate-100">
-                    <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
-                  </div>
-                ))}
+          <h4 className="font-medium text-slate-900 mb-3">{t.admin.icons} ({pack.icons.length})</h4>
+          <div className="grid grid-cols-6 gap-2 mb-4">
+            {pack.icons.map((ic) => (
+              <div key={ic.id} className="aspect-square flex items-center justify-center bg-slate-50 rounded-md border border-slate-100">
+                <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
               </div>
-            </>
-          )}
-
-          {/* Add icon form */}
-          <div className="p-4 rounded-lg bg-slate-50 space-y-3">
-            <div className="text-sm font-medium text-slate-900">{t.admin.addIcon}</div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Input label={t.admin.iconSlug} value={newIcon.slug} onChange={(v) => setNewIcon({ ...newIcon, slug: v })} />
-              <Input label={t.admin.iconNameRu} value={newIcon.nameRu} onChange={(v) => setNewIcon({ ...newIcon, nameRu: v })} />
-              <Input label={t.admin.iconNameEn} value={newIcon.nameEn} onChange={(v) => setNewIcon({ ...newIcon, nameEn: v })} />
-              <Input label={t.admin.iconKeywords} value={newIcon.keywords} onChange={(v) => setNewIcon({ ...newIcon, keywords: v })} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">{t.admin.iconSvg}</label>
-              <textarea
-                value={newIcon.svg}
-                onChange={(e) => setNewIcon({ ...newIcon, svg: e.target.value })}
-                placeholder={t.admin.svgHint}
-                rows={3}
-                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
-              />
-            </div>
-            {newIcon.svg && (
-              <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-slate-200">
-                <span className="text-xs text-slate-500">Preview:</span>
-                <IconView innerSvg={newIcon.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={32} />
-              </div>
-            )}
-            <button
-              onClick={addIcon}
-              className="px-3 py-1.5 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
-            >
-              + {t.admin.addIcon}
-            </button>
-          </div>
-
-          {/* Upload ZIP section */}
-          <div className="mt-3 p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
-            <div className="text-sm font-medium text-slate-900">Загрузить из ZIP-архива</div>
-            <p className="text-xs text-slate-500">
-              Загрузите ZIP-архив с SVG-файлами. Иконки могут лежать в папках — все SVG будут извлечены.
-              Названия генерируются из имён файлов автоматически.
-            </p>
-            <div className="flex items-center gap-3">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip"
-                onChange={handleZipUpload}
-                className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-amber-600 file:text-white hover:file:bg-amber-700"
-                disabled={uploading}
-              />
-              {uploading && <span className="text-xs text-slate-500">Обработка...</span>}
-            </div>
-
-            {uploadedIcons.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-700">
-                    Извлечено: {uploadedIcons.length} иконок
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setUploadedIcons([])}
-                      className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      Очистить
-                    </button>
-                    <button
-                      onClick={saveAllUploadedIcons}
-                      disabled={savingIcons}
-                      className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
-                    >
-                      {savingIcons ? 'Сохранение...' : `Добавить все в пак (${uploadedIcons.length})`}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Preview grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-                  {uploadedIcons.map((ic, idx) => (
-                    <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-md border border-amber-200">
-                      <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-50 rounded border border-slate-100">
-                        <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="grid grid-cols-2 gap-1">
-                          <input
-                            value={ic.slug}
-                            onChange={(e) => updateUploadedIcon(idx, 'slug', e.target.value)}
-                            placeholder="slug"
-                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
-                          />
-                          <input
-                            value={ic.nameRu}
-                            onChange={(e) => updateUploadedIcon(idx, 'nameRu', e.target.value)}
-                            placeholder="Название RU"
-                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
-                          />
-                          <input
-                            value={ic.nameEn}
-                            onChange={(e) => updateUploadedIcon(idx, 'nameEn', e.target.value)}
-                            placeholder="Name EN"
-                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
-                          />
-                          <input
-                            value={ic.keywords}
-                            onChange={(e) => updateUploadedIcon(idx, 'keywords', e.target.value)}
-                            placeholder="Ключевые слова"
-                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
-                          />
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeUploadedIcon(idx)}
-                        className="flex-shrink-0 text-slate-400 hover:text-rose-500 text-xs"
-                        title="Удалить"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            ))}
           </div>
         </div>
       )}
+
+      {/* Add icon manually — only for existing packs */}
+      {!isNew && (
+        <div className="p-4 rounded-lg bg-slate-50 space-y-3">
+          <div className="text-sm font-medium text-slate-900">{t.admin.addIcon}</div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Input label={t.admin.iconSlug} value={newIcon.slug} onChange={(v) => setNewIcon({ ...newIcon, slug: v })} />
+            <Input label={t.admin.iconNameRu} value={newIcon.nameRu} onChange={(v) => setNewIcon({ ...newIcon, nameRu: v })} />
+            <Input label={t.admin.iconNameEn} value={newIcon.nameEn} onChange={(v) => setNewIcon({ ...newIcon, nameEn: v })} />
+            <Input label={t.admin.iconKeywords} value={newIcon.keywords} onChange={(v) => setNewIcon({ ...newIcon, keywords: v })} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">{t.admin.iconSvg}</label>
+            <textarea
+              value={newIcon.svg}
+              onChange={(e) => setNewIcon({ ...newIcon, svg: e.target.value })}
+              placeholder={t.admin.svgHint}
+              rows={3}
+              className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm font-mono"
+            />
+          </div>
+          {newIcon.svg && (
+            <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-slate-200">
+              <span className="text-xs text-slate-500">Preview:</span>
+              <IconView innerSvg={newIcon.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={32} />
+            </div>
+          )}
+          <button
+            onClick={addIcon}
+            className="px-3 py-1.5 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-800"
+          >
+            + {t.admin.addIcon}
+          </button>
+        </div>
+      )}
+
+      {/* Upload ZIP section — always visible */}
+      <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+        <div className="text-sm font-medium text-slate-900">Загрузить из ZIP-архива</div>
+        <p className="text-xs text-slate-500">
+          Загрузите ZIP-архив с SVG-файлами. Иконки могут лежать в папках — все SVG будут извлечены.
+          Названия генерируются из имён файлов автоматически.
+        </p>
+        {isNew && (
+          <p className="text-xs text-amber-700 font-medium">
+            Для новых паков: заполните slug и название, загрузите архив — пак создастся автоматически при сохранении иконок.
+          </p>
+        )}
+        <div className="flex items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            onChange={handleZipUpload}
+            className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-amber-600 file:text-white hover:file:bg-amber-700"
+            disabled={uploading}
+          />
+          {uploading && <span className="text-xs text-slate-500">Обработка...</span>}
+        </div>
+
+        {uploadedIcons.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-700">
+                Извлечено: {uploadedIcons.length} иконок
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setUploadedIcons([])}
+                  className="text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Очистить
+                </button>
+                <button
+                  onClick={saveAllUploadedIcons}
+                  disabled={savingIcons}
+                  className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {savingIcons ? 'Сохранение...' : `Добавить все в пак (${uploadedIcons.length})`}
+                </button>
+              </div>
+            </div>
+
+            {/* Preview grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+              {uploadedIcons.map((ic, idx) => (
+                <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-md border border-amber-200">
+                  <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-50 rounded border border-slate-100">
+                    <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="grid grid-cols-2 gap-1">
+                      <input
+                        value={ic.slug}
+                        onChange={(e) => updateUploadedIcon(idx, 'slug', e.target.value)}
+                        placeholder="slug"
+                        className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                      />
+                      <input
+                        value={ic.nameRu}
+                        onChange={(e) => updateUploadedIcon(idx, 'nameRu', e.target.value)}
+                        placeholder="Название RU"
+                        className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                      />
+                      <input
+                        value={ic.nameEn}
+                        onChange={(e) => updateUploadedIcon(idx, 'nameEn', e.target.value)}
+                        placeholder="Name EN"
+                        className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                      />
+                      <input
+                        value={ic.keywords}
+                        onChange={(e) => updateUploadedIcon(idx, 'keywords', e.target.value)}
+                        placeholder="Ключевые слова"
+                        className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => removeUploadedIcon(idx)}
+                    className="flex-shrink-0 text-slate-400 hover:text-rose-500 text-xs"
+                    title="Удалить"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
