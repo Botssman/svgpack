@@ -28,7 +28,11 @@ export function Admin() {
       const res = await fetch('/api/admin/sync-packs', { method: 'POST' })
       const data = await res.json()
       if (data.ok) {
-        toast({ title: data.added > 0 ? `Добавлено ${data.added} пак(ов), ${data.iconsAdded} иконок` : 'Все паки уже в базе' })
+        const parts = []
+        if (data.added > 0) parts.push(`Добавлено ${data.added} пак(ов)`)
+        if (data.updated > 0) parts.push(`Обновлено ${data.updated} пак(ов)`)
+        if (data.skipped > 0) parts.push(`Без изменений ${data.skipped}`)
+        toast({ title: parts.length > 0 ? parts.join(', ') : 'Все паки актуальны' })
         refresh()
       } else {
         toast({ title: `Ошибка: ${data.error}` })
@@ -109,7 +113,7 @@ export function Admin() {
         >
           {syncing ? 'Синхронизация...' : '🔄 Синхронизировать паки из кода'}
         </button>
-        <p className="mt-1 text-xs text-slate-500">Добавляет в базу паки из packs-data.ts, которых ещё нет в базе</p>
+        <p className="mt-1 text-xs text-slate-500">Добавляет недостающие паки и обновляет изменённые (по кол-ву иконок)</p>
       </div>
 
       {/* Two panes: packs list + pack editor */}
