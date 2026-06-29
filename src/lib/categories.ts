@@ -61,6 +61,15 @@ export const CATEGORIES: Category[] = [
     icon: '🧩',
     sortOrder: 40,
   },
+  {
+    slug: 'education',
+    nameRu: 'Образование',
+    nameEn: 'Education',
+    descRu: 'Иконки для образовательных проектов: наука, обучение, преподавание, расписание, достижение.',
+    descEn: 'Icons for education projects: science, learning, teaching, schedule, achievement.',
+    icon: '🎓',
+    sortOrder: 50,
+  },
 ]
 
 export const CATEGORY_MAP: Record<string, Category> = Object.fromEntries(
