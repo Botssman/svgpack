@@ -204,6 +204,7 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
   const [uploadedIcons, setUploadedIcons] = useState<UploadedIcon[]>([])
   const [uploading, setUploading] = useState(false)
   const [savingIcons, setSavingIcons] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const savePack = async () => {
@@ -251,9 +252,11 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
     }
   }
 
-  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const processZipFile = async (file: File) => {
+    if (!file.name.endsWith('.zip')) {
+      toast({ title: 'Только .zip файлы' })
+      return
+    }
     setUploading(true)
     try {
       const fd = new FormData()
@@ -272,6 +275,28 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  const handleZipUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) processZipFile(file)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) processZipFile(file)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
   }
 
   const updateUploadedIcon = (index: number, field: string, value: string) => {
@@ -455,25 +480,39 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
       {/* Upload ZIP section — always visible */}
       <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
         <div className="text-sm font-medium text-slate-900">Загрузить из ZIP-архива</div>
-        <p className="text-xs text-slate-500">
-          Загрузите ZIP-архив с SVG-файлами. Иконки могут лежать в папках — все SVG будут извлечены.
-          Названия генерируются из имён файлов автоматически.
-        </p>
         {isNew && (
           <p className="text-xs text-amber-700 font-medium">
             Для новых паков: заполните slug и название, загрузите архив — пак создастся автоматически при сохранении иконок.
           </p>
         )}
-        <div className="flex items-center gap-3">
+        <div
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onClick={() => fileInputRef.current?.click()}
+          className={`relative flex flex-col items-center justify-center gap-2 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-colors ${
+            dragOver
+              ? 'border-amber-500 bg-amber-100'
+              : 'border-amber-300 bg-white/50 hover:border-amber-400 hover:bg-amber-50'
+          } ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+        >
+          <svg viewBox="0 0 24 24" className={`w-8 h-8 ${dragOver ? 'text-amber-600' : 'text-amber-400'}`} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          <span className={`text-sm font-medium ${dragOver ? 'text-amber-700' : 'text-amber-600'}`}>
+            {uploading ? 'Обработка...' : dragOver ? 'Отпустите для загрузки' : 'Перетащите ZIP-архив сюда'}
+          </span>
+          <span className="text-xs text-slate-400">или нажмите для выбора файла</span>
           <input
             ref={fileInputRef}
             type="file"
             accept=".zip"
             onChange={handleZipUpload}
-            className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-amber-600 file:text-white hover:file:bg-amber-700"
+            className="hidden"
             disabled={uploading}
           />
-          {uploading && <span className="text-xs text-slate-500">Обработка...</span>}
         </div>
 
         {uploadedIcons.length > 0 && (
