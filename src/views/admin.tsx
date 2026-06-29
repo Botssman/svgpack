@@ -20,6 +20,25 @@ export function Admin() {
   const [packs, setPacks] = useState<Pack[]>([])
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null)
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+
+  const syncPacks = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/admin/sync-packs', { method: 'POST' })
+      const data = await res.json()
+      if (data.ok) {
+        toast({ title: data.added > 0 ? `Добавлено ${data.added} пак(ов), ${data.iconsAdded} иконок` : 'Все паки уже в базе' })
+        refresh()
+      } else {
+        toast({ title: `Ошибка: ${data.error}` })
+      }
+    } catch {
+      toast({ title: 'Ошибка синхронизации' })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const refresh = async () => {
     const [statsRes, packsRes] = await Promise.all([
@@ -74,11 +93,23 @@ export function Admin() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
         <StatCard label={t.admin.statsPacks} value={stats.packs} />
         <StatCard label={t.admin.statsIcons} value={stats.icons} />
         <StatCard label={t.admin.statsUsers} value={stats.users} />
         <StatCard label={t.admin.statsRevenue} value={`$${stats.revenue.toFixed(2)}`} />
+      </div>
+
+      {/* Sync button */}
+      <div className="mb-8">
+        <button
+          onClick={syncPacks}
+          disabled={syncing}
+          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {syncing ? 'Синхронизация...' : '🔄 Синхронизировать паки из кода'}
+        </button>
+        <p className="mt-1 text-xs text-slate-500">Добавляет в базу паки из packs-data.ts, которых ещё нет в базе</p>
       </div>
 
       {/* Two panes: packs list + pack editor */}
