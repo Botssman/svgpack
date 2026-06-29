@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { autoSeed } from '@/lib/seed-prisma'
 
 // GET /api/packs — список паков с иконками, поддержка поиска и фильтра
 export async function GET(req: NextRequest) {
   try {
-    // Auto-seed on first request if DB is empty
-    await autoSeed()
-
     const { searchParams } = new URL(req.url)
     const q = (searchParams.get('q') || '').toLowerCase().trim()
     const category = searchParams.get('category') || ''
