@@ -22,10 +22,10 @@ export function Admin() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
 
-  const syncPacks = async (force = false) => {
+  const syncPacks = async () => {
     setSyncing(true)
     try {
-      const res = await fetch(`/api/admin/sync-packs${force ? '?force=1' : ''}`, { method: 'POST' })
+      const res = await fetch('/api/admin/sync-packs?force=1', { method: 'POST' })
       const data = await res.json()
       if (data.ok) {
         const parts = []
@@ -105,22 +105,15 @@ export function Admin() {
       </div>
 
       {/* Sync button */}
-      <div className="mb-8 flex items-center gap-3">
+      <div className="mb-8">
         <button
-          onClick={() => syncPacks(false)}
+          onClick={syncPacks}
           disabled={syncing}
           className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {syncing ? 'Синхронизация...' : '🔄 Синхронизировать паки'}
+          {syncing ? 'Синхронизация...' : '🔄 Синхронизировать паки из кода'}
         </button>
-        <button
-          onClick={() => syncPacks(true)}
-          disabled={syncing}
-          className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
-        >
-          {syncing ? 'Синхронизация...' : '⚡ Принудительно обновить все'}
-        </button>
-        <p className="text-xs text-slate-500">Первая — только изменённые. Вторая — перезапишет все паки из кода</p>
+        <p className="mt-1 text-xs text-slate-500">Обновляет все паки из кода в базу данных</p>
       </div>
 
       {/* Two panes: packs list + pack editor */}
