@@ -229,6 +229,7 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
             { value: 'frameworks', label: 'frameworks' },
             { value: 'tools', label: 'tools' },
             { value: 'concepts', label: 'concepts' },
+            { value: 'education', label: 'education' },
           ]}
         />
         <Select

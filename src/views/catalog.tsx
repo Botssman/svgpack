@@ -4,6 +4,7 @@ import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { View } from '@/lib/navigation'
 import { useToast } from '@/hooks/use-toast'
+import { CATEGORIES } from '@/lib/categories'
 
 type Pack = {
   id: string
@@ -59,10 +60,10 @@ export function Catalog({ nav }: { nav: (v: View) => void }) {
 
   const categories = [
     { id: 'all', label: t.catalog.filterAll },
-    { id: 'languages', label: t.catalog.filterLanguages },
-    { id: 'frameworks', label: t.catalog.filterFrameworks },
-    { id: 'tools', label: t.catalog.filterTools },
-    { id: 'concepts', label: t.catalog.filterConcepts },
+    ...CATEGORIES.map((c) => ({
+      id: c.slug,
+      label: lang === 'ru' ? c.nameRu : c.nameEn,
+    })),
   ]
 
   const handleDownload = (slug: string) => {
