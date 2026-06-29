@@ -376,16 +376,20 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
       </div>
 
       {/* Icons in pack */}
-      {!isNew && pack.icons && (
+      {!isNew && (
         <div className="pt-5 border-t border-slate-200">
-          <h4 className="font-medium text-slate-900 mb-3">{t.admin.icons} ({pack.icons.length})</h4>
-          <div className="grid grid-cols-6 gap-2 mb-4">
-            {pack.icons.map((ic) => (
-              <div key={ic.id} className="aspect-square flex items-center justify-center bg-slate-50 rounded-md border border-slate-100">
-                <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
+          {pack.icons && pack.icons.length > 0 && (
+            <>
+              <h4 className="font-medium text-slate-900 mb-3">{t.admin.icons} ({pack.icons.length})</h4>
+              <div className="grid grid-cols-6 gap-2 mb-4">
+                {pack.icons.map((ic) => (
+                  <div key={ic.id} className="aspect-square flex items-center justify-center bg-slate-50 rounded-md border border-slate-100">
+                    <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
           {/* Add icon form */}
           <div className="p-4 rounded-lg bg-slate-50 space-y-3">
@@ -421,7 +425,7 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
           </div>
 
           {/* Upload ZIP section */}
-          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+          <div className="mt-3 p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
             <div className="text-sm font-medium text-slate-900">Загрузить из ZIP-архива</div>
             <p className="text-xs text-slate-500">
               Загрузите ZIP-архив с SVG-файлами. Иконки могут лежать в папках — все SVG будут извлечены.
