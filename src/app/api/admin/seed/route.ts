@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@libsql/client'
-import { seedDatabase } from '@/lib/seed-runner'
+import { seedWithPrisma } from '@/lib/seed-prisma'
 
 /**
- * POST /api/admin/seed — re-seeds the Turso database with the canonical
- * packs + icons defined in scripts/packs-data.ts.
+ * POST /api/admin/seed — re-seeds the database with the canonical
+ * packs + icons defined in src/lib/packs-data.ts.
  *
- * This route runs ON the Vercel serverless function, so it has direct
- * access to DATABASE_URL and DATABASE_AUTH_TOKEN env vars (no need to
- * expose them to the client).
+ * Uses Prisma (works with both local SQLite and Turso via adapter).
  *
  * Idempotent: safe to call multiple times. Wipes icon/pack tables and
  * re-inserts. Users (admin, demo) are upserted.
@@ -35,27 +32,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid admin token' }, { status: 401 })
     }
 
-    const dbUrl = process.env.DATABASE_URL
-    const dbToken = process.env.DATABASE_AUTH_TOKEN
-    if (!dbUrl || !dbToken) {
-      return NextResponse.json(
-        { error: 'DATABASE_URL or DATABASE_AUTH_TOKEN not set on server' },
-        { status: 500 },
-      )
-    }
-
-    const client = createClient({ url: dbUrl, authToken: dbToken })
-    try {
-      const result = await seedDatabase(client)
-      return NextResponse.json({
-        ok: true,
-        packs: result.packs,
-        icons: result.icons,
-        log: result.log,
-      })
-    } finally {
-      await client.close()
-    }
+    const result = await seedWithPrisma()
+    return NextResponse.json({
+      ok: true,
+      packs: result.packs,
+      icons: result.icons,
+      users: result.users,
+    })
   } catch (e: any) {
     console.error('[/api/admin/seed] ERROR:', e?.message || e)
     console.error('[/api/admin/seed] STACK:', e?.stack)
