@@ -103,7 +103,7 @@ export function Account({ nav }: { nav: (v: View) => void }) {
           >
             {t.nav.billing}
           </button>
-          {user.role === 'admin' && (
+          {(user.role === 'admin' || user.role === 'moderator') && (
             <button
               onClick={() => nav({ name: 'admin' })}
               className="px-4 py-2 rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50"

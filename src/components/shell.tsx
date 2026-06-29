@@ -167,7 +167,7 @@ function Header({ itemsCount }: { itemsCount: number }) {
     { label: t.nav.myPacks, href: '/my-packs', authOnly: true },
     { label: t.nav.billing, href: '/pricing' },
     { label: t.nav.admin, href: '/admin', adminOnly: true },
-  ].filter((i) => !i.adminOnly || user?.role === 'admin')
+  ].filter((i) => !i.adminOnly || user?.role === 'admin' || user?.role === 'moderator')
    .filter((i) => !i.authOnly || !!user)
 
   return (

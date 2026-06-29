@@ -31,6 +31,12 @@ export async function seedDatabase(client: Client): Promise<{
   })
   await client.execute({
     sql: `INSERT INTO User (id, email, name, role, credits, createdAt, updatedAt)
+          VALUES (?, 'moderator@iconhub.test', 'Moderator', 'moderator', 100, datetime('now'), datetime('now'))
+          ON CONFLICT(email) DO UPDATE SET role='moderator', credits=100, updatedAt=datetime('now')`,
+    args: [rid()],
+  })
+  await client.execute({
+    sql: `INSERT INTO User (id, email, name, role, credits, createdAt, updatedAt)
           VALUES (?, 'demo@iconhub.test', 'Demo User', 'user', 30, datetime('now'), datetime('now'))
           ON CONFLICT(email) DO UPDATE SET name='Demo User', updatedAt=datetime('now')`,
     args: [rid()],
@@ -66,6 +72,6 @@ export async function seedDatabase(client: Client): Promise<{
     emit(`  ✓ Pack "${pack.slug}" with ${pack.icons.length} icons`)
   }
 
-  emit(`\n✓ Done: ${PACKS.length} packs, ${iconCount} icons, 2 users`)
+  emit(`\n✓ Done: ${PACKS.length} packs, ${iconCount} icons, 3 users`)
   return { packs: PACKS.length, icons: iconCount, log }
 }

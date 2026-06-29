@@ -15,7 +15,7 @@ model User {
   email              String         @unique
   name               String?
   passwordHash       String?
-  role               String         @default("user") // "user" | "admin"
+  role               String         @default("user") // "user" | "moderator" | "admin"
   credits            Int            @default(0)
   // Free plan tracking: 3 pack builds per month
   freeBuildsUsed     Int            @default(0)

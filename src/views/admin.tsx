@@ -45,8 +45,25 @@ export function Admin() {
     return () => { cancelled = true }
   }, [])
 
-  if (!user || user.role !== 'admin') {
-    return <div className="container-narrow py-20 text-center text-slate-500">Admin only. Login as admin@iconhub.test</div>
+  if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+    return (
+      <div className="container-narrow flex min-h-[50vh] flex-col items-center justify-center py-20">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-400">
+          <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-1">Доступ ограничен</h2>
+        <p className="text-sm text-neutral-500 mb-5">Только для администраторов и модераторов</p>
+        <a
+          href="/admin/login"
+          className="px-5 py-2.5 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700 transition-colors"
+        >
+          Войти в админку
+        </a>
+      </div>
+    )
   }
 
   return (
