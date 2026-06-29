@@ -6,17 +6,11 @@ import { PACKS } from '@/lib/packs-data'
  * POST /api/admin/sync-packs — syncs packs from packs-data.ts to the DB.
  *
  * - Adds missing packs (by slug)
- * - Updates existing packs that have a different icon count (deletes old icons, re-inserts)
- * - Skips packs that already match
- *
- * Query params:
- *   ?force=1 — force update ALL packs (delete and re-insert every pack from code)
+ * - Always updates existing packs (deletes old icons, re-inserts from code)
+ *   This ensures SVG content changes are always pushed to the DB.
  */
 export async function POST(req: NextRequest) {
   try {
-    const url = new URL(req.url)
-    const force = url.searchParams.get('force') === '1'
-
     // Get existing packs with icon counts
     const existing = await db.pack.findMany({
       select: { id: true, slug: true, _count: { select: { icons: true } } },
@@ -58,8 +52,8 @@ export async function POST(req: NextRequest) {
         results.iconsAdded += pack.icons.length
         results.packs.push(`+ ${pack.slug}`)
         console.log(`[sync-packs] Added "${pack.slug}" — ${pack.icons.length} icons`)
-      } else if (force || existingPack._count.icons !== pack.icons.length) {
-        // Existing pack with different icon count (or force) — update
+      } else {
+        // Existing pack — always update (SVGs may have changed even if count is the same)
         // Delete old icons then re-insert
         await db.icon.deleteMany({ where: { packId: existingPack.id } })
         await db.pack.update({
@@ -90,8 +84,6 @@ export async function POST(req: NextRequest) {
         results.iconsUpdated += pack.icons.length
         results.packs.push(`~ ${pack.slug} (${existingPack._count.icons} → ${pack.icons.length} icons)`)
         console.log(`[sync-packs] Updated "${pack.slug}" — ${existingPack._count.icons} → ${pack.icons.length} icons`)
-      } else {
-        results.skipped++
       }
     }
 
