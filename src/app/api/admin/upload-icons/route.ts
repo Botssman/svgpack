@@ -297,6 +297,10 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Remove <title> tags from inner SVG (they often contain Russian text
+      // that shouldn't be in the final SVG markup stored in the database)
+      innerSvg = innerSvg.replace(/<title[^>]*>[\s\S]*?<\/title>\s*/gi, '')
+
       // Generate slug
       const slug = slugPart
         .toLowerCase()
