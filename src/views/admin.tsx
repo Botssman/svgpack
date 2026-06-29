@@ -1,9 +1,18 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useUser } from '@/lib/user-store'
 import { useToast } from '@/hooks/use-toast'
+
+type UploadedIcon = {
+  slug: string
+  nameRu: string
+  nameEn: string
+  keywords: string
+  svg: string
+  viewBox: string
+}
 
 type Pack = {
   id: string; slug: string; nameRu: string; nameEn: string; descRu: string; descEn: string;
@@ -192,6 +201,10 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
     isFree: pack.isFree ?? true,
   })
   const [newIcon, setNewIcon] = useState({ slug: '', nameRu: '', nameEn: '', keywords: '', svg: '' })
+  const [uploadedIcons, setUploadedIcons] = useState<UploadedIcon[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [savingIcons, setSavingIcons] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const savePack = async () => {
     if (isNew) {
@@ -235,6 +248,62 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
       toast({ title: t.toast.saved })
       setNewIcon({ slug: '', nameRu: '', nameEn: '', keywords: '', svg: '' })
       onSaved()
+    }
+  }
+
+  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/admin/upload-icons', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (data.ok && data.icons?.length > 0) {
+        setUploadedIcons(data.icons)
+        toast({ title: `Извлечено ${data.icons.length} иконок из архива` })
+      } else {
+        toast({ title: data.error || 'В архиве не найдено SVG-файлов' })
+      }
+    } catch {
+      toast({ title: 'Ошибка загрузки архива' })
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const updateUploadedIcon = (index: number, field: string, value: string) => {
+    setUploadedIcons(prev => prev.map((ic, i) => i === index ? { ...ic, [field]: value } : ic))
+  }
+
+  const removeUploadedIcon = (index: number) => {
+    setUploadedIcons(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const saveAllUploadedIcons = async () => {
+    if (uploadedIcons.length === 0) return
+    setSavingIcons(true)
+    try {
+      let added = 0
+      let errors = 0
+      for (const icon of uploadedIcons) {
+        const res = await fetch('/api/admin/icons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...icon, packId: pack.id }),
+        })
+        if (res.ok) added++
+        else errors++
+      }
+      toast({ title: `Добавлено ${added} иконок${errors > 0 ? `, ошибок: ${errors}` : ''}` })
+      setUploadedIcons([])
+      onSaved()
+    } catch {
+      toast({ title: 'Ошибка сохранения иконок' })
+    } finally {
+      setSavingIcons(false)
     }
   }
 
@@ -349,6 +418,97 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
             >
               + {t.admin.addIcon}
             </button>
+          </div>
+
+          {/* Upload ZIP section */}
+          <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
+            <div className="text-sm font-medium text-slate-900">Загрузить из ZIP-архива</div>
+            <p className="text-xs text-slate-500">
+              Загрузите ZIP-архив с SVG-файлами. Иконки могут лежать в папках — все SVG будут извлечены.
+              Названия генерируются из имён файлов автоматически.
+            </p>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                onChange={handleZipUpload}
+                className="text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-amber-600 file:text-white hover:file:bg-amber-700"
+                disabled={uploading}
+              />
+              {uploading && <span className="text-xs text-slate-500">Обработка...</span>}
+            </div>
+
+            {uploadedIcons.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-700">
+                    Извлечено: {uploadedIcons.length} иконок
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setUploadedIcons([])}
+                      className="text-xs text-slate-500 hover:text-slate-700"
+                    >
+                      Очистить
+                    </button>
+                    <button
+                      onClick={saveAllUploadedIcons}
+                      disabled={savingIcons}
+                      className="px-3 py-1.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      {savingIcons ? 'Сохранение...' : `Добавить все в пак (${uploadedIcons.length})`}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                  {uploadedIcons.map((ic, idx) => (
+                    <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-md border border-amber-200">
+                      <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-50 rounded border border-slate-100">
+                        <IconView innerSvg={ic.svg} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="grid grid-cols-2 gap-1">
+                          <input
+                            value={ic.slug}
+                            onChange={(e) => updateUploadedIcon(idx, 'slug', e.target.value)}
+                            placeholder="slug"
+                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                          />
+                          <input
+                            value={ic.nameRu}
+                            onChange={(e) => updateUploadedIcon(idx, 'nameRu', e.target.value)}
+                            placeholder="Название RU"
+                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                          />
+                          <input
+                            value={ic.nameEn}
+                            onChange={(e) => updateUploadedIcon(idx, 'nameEn', e.target.value)}
+                            placeholder="Name EN"
+                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                          />
+                          <input
+                            value={ic.keywords}
+                            onChange={(e) => updateUploadedIcon(idx, 'keywords', e.target.value)}
+                            placeholder="Ключевые слова"
+                            className="px-2 py-0.5 rounded border border-slate-200 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeUploadedIcon(idx)}
+                        className="flex-shrink-0 text-slate-400 hover:text-rose-500 text-xs"
+                        title="Удалить"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
