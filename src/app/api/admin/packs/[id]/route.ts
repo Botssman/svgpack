@@ -45,9 +45,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({ pack })
 }
 
-// DELETE /api/admin/packs/[id]
+// DELETE /api/admin/packs/[id] — удалить пак со всеми иконками
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  await db.pack.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  try {
+    // Проверяем существование пака и считаем иконки
+    const pack = await db.pack.findUnique({
+      where: { id },
+      include: { _count: { select: { icons: true } } },
+    })
+    if (!pack) {
+      return NextResponse.json({ error: 'Пак не найден' }, { status: 404 })
+    }
+
+    const iconsCount = pack._count.icons
+
+    // Удаляем пак (каскадно удалятся все иконки благодаря onDelete: Cascade в схеме)
+    await db.pack.delete({ where: { id } })
+
+    return NextResponse.json({ ok: true, deleted: { pack: pack.nameEn, icons: iconsCount } })
+  } catch (e: any) {
+    console.error('Delete pack error:', e)
+    return NextResponse.json({ error: `Ошибка удаления: ${e.message || 'unknown'}` }, { status: 500 })
+  }
 }

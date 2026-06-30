@@ -306,11 +306,28 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
     }
   }
 
+  const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
   const deletePack = async () => {
-    if (!confirm('Delete?')) return
-    await fetch(`/api/admin/packs/${pack.id}`, { method: 'DELETE' })
-    toast({ title: t.toast.saved })
-    onDeleted()
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/packs/${pack.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        const data = await res.json()
+        const info = data.deleted ? ` (${data.deleted.icons} иконок)` : ''
+        toast({ title: `Пак удалён${info}` })
+        setShowDeleteConfirm(false)
+        onDeleted()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast({ title: data.error || 'Ошибка удаления пака' })
+      }
+    } catch {
+      toast({ title: 'Ошибка удаления пака' })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const addIcon = async () => {
@@ -439,13 +456,19 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
   }
 
   return (
+    <>
     <div className="p-5 space-y-5">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-slate-900">
           {isNew ? t.admin.newPack : `${t.admin.editPack}: ${lang === 'ru' ? pack.nameRu : pack.nameEn}`}
         </h3>
         {!isNew && (
-          <button onClick={deletePack} className="text-xs text-rose-600 hover:text-rose-700">{t.admin.delete}</button>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-3 py-1.5 rounded-md bg-rose-50 text-rose-600 text-xs font-medium hover:bg-rose-100 border border-rose-200 transition-colors"
+          >
+            {t.admin.delete}
+          </button>
         )}
       </div>
 
@@ -665,6 +688,37 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
         )}
       </div>
     </div>
+
+    {/* Delete confirmation modal — rendered outside the main div so it overlays properly */}
+    {showDeleteConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Удалить пак?</h3>
+          <p className="text-sm text-slate-600 mb-1">
+            Пак <strong>{lang === 'ru' ? pack.nameRu : pack.nameEn}</strong> будет удалён навсегда.
+          </p>
+          <p className="text-sm text-rose-600 mb-5">
+            Все иконки в этом паке ({pack.icons?.length ?? 0} шт.) будут также удалены из базы данных.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-4 py-2 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={deletePack}
+              disabled={deleting}
+              className="px-4 py-2 rounded-md bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
+            >
+              {deleting ? 'Удаление...' : 'Удалить навсегда'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
