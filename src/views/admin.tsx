@@ -30,6 +30,40 @@ export function Admin() {
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Pack | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const filteredPacks = packs.filter((p) => {
+    const q = searchQuery.toLowerCase()
+    if (q && !p.nameRu.toLowerCase().includes(q) && !p.nameEn.toLowerCase().includes(q) && !p.slug.toLowerCase().includes(q)) return false
+    if (filterCategory && p.category !== filterCategory) return false
+    return true
+  })
+
+  const deletePackFromList = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/packs/${deleteTarget.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        const data = await res.json()
+        const info = data.deleted ? ` (${data.deleted.icons} иконок)` : ''
+        toast({ title: `Пак «${lang === 'ru' ? deleteTarget.nameRu : deleteTarget.nameEn}» удалён${info}` })
+        if (selectedPack?.id === deleteTarget.id) setSelectedPack(null)
+        setDeleteTarget(null)
+        refresh()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast({ title: data.error || 'Ошибка удаления пака' })
+      }
+    } catch {
+      toast({ title: 'Ошибка удаления пака' })
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const syncPacks = async () => {
     setSyncing(true)
@@ -153,48 +187,118 @@ export function Admin() {
         </div>
       </div>
 
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Удалить пак?</h3>
+            <p className="text-sm text-slate-600 mb-1">
+              Пак <strong>«{lang === 'ru' ? deleteTarget.nameRu : deleteTarget.nameEn}»</strong> будет удалён навсегда.
+            </p>
+            <p className="text-sm text-rose-600 mb-5">
+              Все иконки в этом паке ({deleteTarget._count?.icons ?? deleteTarget.icons?.length ?? 0} шт.) будут также удалены из базы данных.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={deletePackFromList}
+                disabled={deleting}
+                className="px-4 py-2 rounded-md bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
+              >
+                {deleting ? 'Удаление...' : 'Удалить навсегда'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Two panes: packs list + pack editor */}
       <div className="grid lg:grid-cols-[1fr_2fr] gap-6">
         {/* Packs list */}
-        <div className="rounded-xl border border-slate-200 bg-white">
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">{t.admin.packs}</h2>
-            <button
-              onClick={() => setSelectedPack({} as Pack)}
-              className="text-xs px-2 py-1 rounded-md bg-slate-900 text-white hover:bg-slate-800"
-            >
-              + {t.admin.newPack}
-            </button>
-          </div>
-          <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
-            {loading ? (
-              <div className="p-4 text-sm text-slate-500">...</div>
-            ) : (
-              packs.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(`/api/admin/packs/${p.id}`)
-                      if (!res.ok) {
-                        toast({ title: `Ошибка загрузки: HTTP ${res.status}` })
-                        return
-                      }
-                      const d = await res.json()
-                      if (d.pack) {
-                        setSelectedPack(d.pack)
-                      } else {
-                        toast({ title: 'Пак не найден в базе' })
-                      }
-                    } catch (e) {
-                      toast({ title: 'Ошибка загрузки пака' })
-                    }
-                  }}
-                  className={`w-full text-left p-3 hover:bg-slate-50 transition-colors ${selectedPack?.id === p.id ? 'bg-slate-50' : ''}`}
-                >
-                  <div className="font-medium text-sm text-slate-900">{lang === 'ru' ? p.nameRu : p.nameEn}</div>
-                  <div className="text-xs text-slate-500">{p.slug} · {p._count?.icons ?? p.icons?.length ?? 0} {t.catalog.iconsCount}</div>
+        <div className="rounded-xl border border-slate-200 bg-white flex flex-col">
+          <div className="p-4 border-b border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-slate-900">{t.admin.packs} <span className="text-slate-400 font-normal">({filteredPacks.length}{filteredPacks.length !== packs.length ? ` из ${packs.length}` : ''})</span></h2>
+              <button
+                onClick={() => setSelectedPack({} as Pack)}
+                className="text-xs px-2 py-1 rounded-md bg-slate-900 text-white hover:bg-slate-800"
+              >
+                + {t.admin.newPack}
+              </button>
+            </div>
+            {/* Search */}
+            <div className="relative">
+              <svg viewBox="0 0 24 24" className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Поиск по названию или slug..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-md border border-slate-200 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                 </button>
+              )}
+            </div>
+            {/* Category filter */}
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full px-3 py-1.5 rounded-md border border-slate-200 text-sm text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <option value="">Все категории</option>
+              <option value="languages">languages</option>
+              <option value="frameworks">frameworks</option>
+              <option value="tools">tools</option>
+              <option value="concepts">concepts</option>
+              <option value="education">education</option>
+            </select>
+          </div>
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-0" style={{ maxHeight: 'calc(100vh - 420px)' }}>
+            {loading ? (
+              <div className="p-4 text-sm text-slate-500">Загрузка...</div>
+            ) : filteredPacks.length === 0 ? (
+              <div className="p-4 text-sm text-slate-400">{packs.length === 0 ? 'Нет паков' : 'Ничего не найдено'}</div>
+            ) : (
+              filteredPacks.map((p) => (
+                <div
+                  key={p.id}
+                  className={`group flex items-center gap-2 p-3 hover:bg-slate-50 transition-colors cursor-pointer ${selectedPack?.id === p.id ? 'bg-slate-50' : ''}`}
+                >
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/admin/packs/${p.id}`)
+                        if (!res.ok) { toast({ title: `Ошибка загрузки: HTTP ${res.status}` }); return }
+                        const d = await res.json()
+                        if (d.pack) setSelectedPack(d.pack)
+                        else toast({ title: 'Пак не найден в базе' })
+                      } catch { toast({ title: 'Ошибка загрузки пака' }) }
+                    }}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="font-medium text-sm text-slate-900 truncate">{lang === 'ru' ? p.nameRu : p.nameEn}</div>
+                    <div className="text-xs text-slate-500 truncate">{p.slug} · {p._count?.icons ?? p.icons?.length ?? 0} {t.catalog.iconsCount} · <span className="text-slate-400">{p.category}</span></div>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }}
+                    className="flex-shrink-0 p-1 rounded text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                    title="Удалить пак"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -207,7 +311,7 @@ export function Admin() {
               ← {t.admin.packs}
             </div>
           ) : (
-            <PackEditor pack={selectedPack} onSaved={refresh} onDeleted={() => { setSelectedPack(null); refresh() }} />
+            <PackEditor pack={selectedPack} onSaved={refresh} onDeleted={() => { setSelectedPack(null); refresh() }} onDeleteRequest={(p) => setDeleteTarget(p)} />
           )}
         </div>
       </div>
@@ -224,7 +328,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => void; onDeleted: () => void }) {
+function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest }: { pack: Pack; onSaved: () => void; onDeleted: () => void; onDeleteRequest: (p: Pack) => void }) {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const isNew = !pack.id
@@ -303,30 +407,6 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
         const d = await res.json().catch(() => ({}))
         toast({ title: d.error || 'Ошибка сохранения' })
       }
-    }
-  }
-
-  const [deleting, setDeleting] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  const deletePack = async () => {
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/admin/packs/${pack.id}`, { method: 'DELETE' })
-      if (res.ok) {
-        const data = await res.json()
-        const info = data.deleted ? ` (${data.deleted.icons} иконок)` : ''
-        toast({ title: `Пак удалён${info}` })
-        setShowDeleteConfirm(false)
-        onDeleted()
-      } else {
-        const data = await res.json().catch(() => ({}))
-        toast({ title: data.error || 'Ошибка удаления пака' })
-      }
-    } catch {
-      toast({ title: 'Ошибка удаления пака' })
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -464,7 +544,7 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
         </h3>
         {!isNew && (
           <button
-            onClick={() => setShowDeleteConfirm(true)}
+            onClick={() => onDeleteRequest(pack)}
             className="px-3 py-1.5 rounded-md bg-rose-50 text-rose-600 text-xs font-medium hover:bg-rose-100 border border-rose-200 transition-colors"
           >
             {t.admin.delete}
@@ -688,36 +768,6 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
         )}
       </div>
     </div>
-
-    {/* Delete confirmation modal — rendered outside the main div so it overlays properly */}
-    {showDeleteConfirm && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDeleteConfirm(false)}>
-        <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Удалить пак?</h3>
-          <p className="text-sm text-slate-600 mb-1">
-            Пак <strong>{lang === 'ru' ? pack.nameRu : pack.nameEn}</strong> будет удалён навсегда.
-          </p>
-          <p className="text-sm text-rose-600 mb-5">
-            Все иконки в этом паке ({pack.icons?.length ?? 0} шт.) будут также удалены из базы данных.
-          </p>
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={() => setShowDeleteConfirm(false)}
-              className="px-4 py-2 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
-            >
-              Отмена
-            </button>
-            <button
-              onClick={deletePack}
-              disabled={deleting}
-              className="px-4 py-2 rounded-md bg-rose-600 text-white text-sm font-medium hover:bg-rose-700 disabled:opacity-50"
-            >
-              {deleting ? 'Удаление...' : 'Удалить навсегда'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
     </>
   )
 }
