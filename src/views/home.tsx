@@ -1,4 +1,5 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { View } from '@/lib/navigation'
@@ -125,9 +126,17 @@ const PACK_THEMES = [
 export function Home({ nav }: { nav: (v: View) => void }) {
   const { t, lang } = useI18n()
 
-  // Dynamic stats from pack data
-  const totalPacks = PACKS.length
-  const totalIcons = PACKS.reduce((sum, p) => sum + p.icons.length, 0)
+  // Fetch live stats from DB
+  const [stats, setStats] = useState({ packs: 0, icons: 0 })
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(d => setStats({ packs: d.packs || 0, icons: d.icons || 0 }))
+      .catch(() => {})
+  }, [])
+
+  const totalPacks = stats.packs
+  const totalIcons = stats.icons
 
   return (
     <div>

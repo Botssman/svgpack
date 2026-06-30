@@ -31,6 +31,7 @@ export function Catalog() {
   const { toast } = useToast()
   const [packs, setPacks] = useState<Pack[]>([])
   const [total, setTotal] = useState(0)
+  const [totalIconsAll, setTotalIconsAll] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -104,6 +105,7 @@ export function Catalog() {
         if (cancelled) return
         setPacks(d.packs || [])
         setTotal(d.total || 0)
+        setTotalIconsAll(d.totalIconsAll || 0)
         setTotalPages(d.totalPages || 1)
         setLoading(false)
       })
@@ -115,7 +117,8 @@ export function Catalog() {
     return () => { cancelled = true }
   }, [category, q, style, isFree, page, limit, retryCount])
 
-  const totalIcons = useMemo(() => packs.reduce((s, p) => s + p.icons.length, 0), [packs])
+  // totalIconsAll comes from the API (all icons in DB matching filters), not just current page
+  const totalIconsOnPage = useMemo(() => packs.reduce((s, p) => s + p.icons.length, 0), [packs])
 
   const categories = [
     { id: 'all', label: t.catalog.filterAll },
@@ -311,7 +314,7 @@ export function Catalog() {
               {' '}{lang === 'ru' ? (total === 1 ? 'пак' : total < 5 ? 'пака' : 'паков') : (total === 1 ? 'pack' : 'packs')}
               {q && <> {lang === 'ru' ? 'по запросу' : 'for'} «{q}»</>}
               {' · '}
-              <span className="font-semibold text-neutral-900">{totalIcons}</span>{' '}
+              <span className="font-semibold text-neutral-900">{totalIconsAll}</span>{' '}
               {t.catalog.iconsCount}
             </span>
           )}
@@ -386,7 +389,7 @@ export function Catalog() {
                       key={ic.id}
                       className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
                     >
-                      <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={20} />
+                      <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={28} />
                     </div>
                   ))}
                 </Link>
