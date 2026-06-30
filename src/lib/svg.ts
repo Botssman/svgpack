@@ -215,9 +215,28 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   const size = cfg.size
   const animId = Math.random().toString(36).slice(2, 8)
 
-  // 1. Применяем цвет: заменяем stroke="currentColor" на конкретный
-  // и для duotone-режима чередуем paths между color и color2
+  // Normalize viewBox to "0 0 24 24" — scale content if original viewBox differs.
+  // Many icons have viewBox "0 0 48 48" which makes them appear tiny in a 24x24 system.
   let body = innerSvg
+  let effectiveViewBox = '0 0 24 24'
+
+  const vbMatch = viewBox.match(/^([\d.-]+)\s+([\d.-]+)\s+([\d.]+)\s+([\d.]+)$/)
+  if (vbMatch) {
+    const vx = parseFloat(vbMatch[1])
+    const vy = parseFloat(vbMatch[2])
+    const vw = parseFloat(vbMatch[3])
+    const vh = parseFloat(vbMatch[4])
+    // If viewBox is not 0 0 24 24, wrap content in a scale/translate group
+    if (vw !== 24 || vh !== 24 || vx !== 0 || vy !== 0) {
+      const scaleX = 24 / vw
+      const scaleY = 24 / vh
+      const scale = Math.min(scaleX, scaleY)
+      // Center the scaled content
+      const tx = -vx * scale + (24 - vw * scale) / 2
+      const ty = -vy * scale + (24 - vh * scale) / 2
+      body = `<g transform="translate(${tx.toFixed(4)},${ty.toFixed(4)}) scale(${scale.toFixed(6)})">${body}</g>`
+    }
+  }
 
   // Generate gradient defs if needed
   const gradientId = `grad-${animId}`
@@ -462,7 +481,7 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   const lineJoinAttr = `stroke-linejoin="${cfg.lineJoin}"`
   const dashAttr = dashArray ? ` stroke-dasharray="${dashArray}"` : ''
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" ${lineCapAttr} ${lineJoinAttr}${dashAttr}>${inner}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${effectiveViewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" ${lineCapAttr} ${lineJoinAttr}${dashAttr}>${inner}</svg>`
 }
 
 /**
