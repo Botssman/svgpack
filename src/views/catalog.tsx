@@ -387,7 +387,7 @@ export function Catalog() {
                   {pack.icons.slice(0, 12).map((ic) => (
                     <div
                       key={ic.id}
-                      className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
+                      className="flex h-24 w-24 items-center justify-center rounded-lg border border-neutral-100 bg-white"
                     >
                       <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} fill />
                     </div>

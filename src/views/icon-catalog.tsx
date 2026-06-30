@@ -229,7 +229,7 @@ export function IconCatalog() {
                 onClick={() => handleAddToBuild(ic)}
                 title={`${lang === 'ru' ? ic.nameRu : ic.nameEn} (${ic.pack.nameEn})`}
               >
-                <div className="flex-1 flex items-center justify-center p-1 w-full">
+                <div className="flex-1 flex items-center justify-center p-2 w-full h-24">
                   <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} fill />
                 </div>
                 {/* Icon name tooltip at bottom */}
