@@ -311,7 +311,7 @@ export function Admin() {
               ← {t.admin.packs}
             </div>
           ) : (
-            <PackEditor pack={selectedPack} onSaved={refresh} onDeleted={() => { setSelectedPack(null); refresh() }} onDeleteRequest={(p) => setDeleteTarget(p)} />
+            <PackEditor pack={selectedPack} onSaved={refresh} onReloadPack={(p) => setSelectedPack(p)} onDeleted={() => { setSelectedPack(null); refresh() }} onDeleteRequest={(p) => setDeleteTarget(p)} />
           )}
         </div>
       </div>
@@ -328,7 +328,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest }: { pack: Pack; onSaved: () => void; onDeleted: () => void; onDeleteRequest: (p: Pack) => void }) {
+function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }: { pack: Pack; onSaved: () => void; onDeleted: () => void; onDeleteRequest: (p: Pack) => void; onReloadPack: (p: Pack) => void }) {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const isNew = !pack.id
@@ -536,17 +536,39 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest }: { pack: Pack;
       }
       let added = 0
       let errors = 0
+      const errorMessages: string[] = []
       for (const icon of uploadedIcons) {
         const res = await fetch('/api/admin/icons', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...icon, packId }),
         })
-        if (res.ok) added++
-        else errors++
+        if (res.ok) {
+          added++
+        } else {
+          errors++
+          const errData = await res.json().catch(() => ({}))
+          const msg = errData.error || `HTTP ${res.status}`
+          // Only show first few unique errors
+          if (errorMessages.length < 3 && !errorMessages.includes(msg)) {
+            errorMessages.push(msg)
+          }
+        }
       }
-      toast({ title: `Добавлено ${added} иконок${errors > 0 ? `, ошибок: ${errors}` : ''}` })
+      if (errors > 0) {
+        toast({ title: `Добавлено ${added}, ошибок: ${errors}. ${errorMessages.join('; ')}` })
+      } else {
+        toast({ title: `Добавлено ${added} иконок` })
+      }
       setUploadedIcons([])
+      // Reload the selected pack to show new icons in the editor
+      try {
+        const reloadRes = await fetch(`/api/admin/packs/${packId}`)
+        if (reloadRes.ok) {
+          const d = await reloadRes.json()
+          if (d.pack) onReloadPack(d.pack)
+        }
+      } catch {}
       onSaved()
     } catch {
       toast({ title: 'Ошибка сохранения иконок' })
