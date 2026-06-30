@@ -720,7 +720,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           <div className="grid grid-cols-6 gap-2 mb-4">
             {pack.icons.map((ic) => (
               <div key={ic.id} className="aspect-square flex items-center justify-center bg-slate-50 rounded-md border border-slate-100 overflow-hidden">
-                <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={96} />
+                <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={6} />
               </div>
             ))}
           </div>
@@ -750,7 +750,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           {newIcon.svg && (
             <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-slate-200">
               <span className="text-xs text-slate-500">Preview:</span>
-              <IconView innerSvg={newIcon.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={32} />
+              <IconView innerSvg={newIcon.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={2} />
             </div>
           )}
           <button
@@ -828,7 +828,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
               {uploadedIcons.map((ic, idx) => (
                 <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-md border border-amber-200">
                   <div className="flex-shrink-0 aspect-square flex items-center justify-center bg-slate-50 rounded border border-slate-100 overflow-hidden">
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={96} />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={6} />
                   </div>
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="grid grid-cols-2 gap-1">

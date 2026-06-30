@@ -1135,7 +1135,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                   innerSvg={previewIcon.svg}
                   viewBox={previewIcon.viewBox}
                   cfg={cfgFor(previewIcon.id)}
-                  size={cfgFor(previewIcon.id).animation !== 'none' ? Math.min(96, editorCfg.size * 3) : Math.min(128, editorCfg.size * 4)}
+                  size={cfgFor(previewIcon.id).animation !== 'none' ? Math.min(6, editorCfg.size * 3 / 16) : Math.min(8, editorCfg.size * 4 / 16)}
                 />
               )}
             </div>
@@ -1201,7 +1201,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                         : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
                     }`}
                   >
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={80} />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={5} />
                     {isOverridden && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white" />
                     )}

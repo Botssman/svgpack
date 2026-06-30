@@ -389,7 +389,7 @@ export function Catalog() {
                       key={ic.id}
                       className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
                     >
-                      <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={80} />
+                      <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={5} />
                     </div>
                   ))}
                 </Link>

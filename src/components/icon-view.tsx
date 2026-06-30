@@ -6,6 +6,7 @@ type Props = {
   innerSvg: string
   viewBox?: string
   cfg?: Partial<CustomConfig>
+  /** Size in rem — e.g. 6 means 6rem */
   size?: number
   className?: string
 }
@@ -13,8 +14,9 @@ type Props = {
 /** Renders an icon as an <img> with data URI to hide SVG source from DOM. */
 export function IconView({ innerSvg, viewBox = '0 0 24 24', cfg, size, className }: Props) {
   const finalCfg: CustomConfig = { ...DEFAULT_CONFIG, ...cfg }
-  const px = size || 24
-  finalCfg.size = px
+  const rem = size || 1.5
+  // SVG internal size — use rem*16 as pixel fallback for the SVG viewBox rendering
+  finalCfg.size = Math.round(rem * 16)
 
   const dataUri = useMemo(() => {
     const svg = renderSvg(innerSvg, viewBox, finalCfg)
@@ -31,8 +33,8 @@ export function IconView({ innerSvg, viewBox = '0 0 24 24', cfg, size, className
       role="presentation"
       className={className}
       style={{
-        width: `${px}px`,
-        height: `${px}px`,
+        width: `${rem}rem`,
+        height: `${rem}rem`,
         objectFit: 'contain',
       }}
       draggable={false}
