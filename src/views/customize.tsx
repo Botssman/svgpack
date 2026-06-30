@@ -394,7 +394,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
 
   const gridIcons = useMemo(() => {
     if (!pack) return []
-    if (scopeMode === 'all') return pack.icons.slice(0, 12)
+    if (scopeMode === 'all') return pack.icons
     return pack.icons
   }, [pack, scopeMode])
 
@@ -1201,7 +1201,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                         : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
                     }`}
                   >
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={5} />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={3} />
                     {isOverridden && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white" />
                     )}

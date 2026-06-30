@@ -216,7 +216,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
                       <IconView
                         innerSvg={ic}
                         cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }}
-                        size={28}
+                        size={6}
                         className="transition-transform group-hover:scale-110"
                       />
                     </div>
