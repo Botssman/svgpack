@@ -165,7 +165,15 @@ function translateToRu(words: string[]): string {
 }
 
 /**
- * Supported metadata JSON formats inside the ZIP archive:
+ * Supported pack-level JSON format inside the ZIP archive:
+ *
+ * { "pack_name_en": "...", "pack_name_ru": "...", "pack_description_en": "...", "pack_description_ru": "..." }
+ *
+ * Also accepts shorter keys: nameEn/nameRu, descriptionEn/descriptionRu, name_en/name_ru, desc_en/desc_ru
+ *
+ * The file can be named: pack-info.json, pack.json
+ *
+ * Supported icon metadata JSON formats inside the ZIP archive:
  *
  * 1. Simple map:  { "icon-slug": "Русское название" }
  * 2. Full map:    { "icon-slug": { "nameRu": "...", "nameEn": "...", "keywords": "..." } }
@@ -174,6 +182,29 @@ function translateToRu(words: string[]): string {
  */
 type MetaValue = string | { nameRu?: string; nameEn?: string; keywords?: string }
 type MetaMap = Record<string, MetaValue>
+
+type PackInfo = {
+  nameEn?: string
+  nameRu?: string
+  descriptionEn?: string
+  descriptionRu?: string
+}
+
+function parsePackInfo(raw: string): PackInfo | null {
+  try {
+    const p = JSON.parse(raw)
+    if (typeof p !== 'object' || !p) return null
+    // Support various key naming conventions
+    return {
+      nameEn: p.pack_name_en || p.nameEn || p.name_en || undefined,
+      nameRu: p.pack_name_ru || p.nameRu || p.name_ru || undefined,
+      descriptionEn: p.pack_description_en || p.descriptionEn || p.desc_en || p.description_en || undefined,
+      descriptionRu: p.pack_description_ru || p.descriptionRu || p.desc_ru || p.description_ru || undefined,
+    }
+  } catch {
+    return null
+  }
+}
 
 function parseMetaJson(raw: string): MetaMap {
   const parsed = JSON.parse(raw)
@@ -213,7 +244,35 @@ export async function POST(req: NextRequest) {
     const buffer = await file.arrayBuffer()
     const zip = await JSZip.loadAsync(buffer)
 
-    // ── 1. Look for metadata JSON file ──────────────────────────────
+    // ── 1. Look for pack-level info JSON ──────────────────────────────
+    let packInfo: PackInfo | null = null
+    const packInfoNames = ['pack-info.json', 'pack.json']
+    // Also scan for pack-info files in subfolders
+    zip.forEach((path, entry) => {
+      if (!entry.dir) {
+        const base = path.split('/').pop() || ''
+        if (packInfoNames.includes(base) && !packInfoNames.includes(path)) {
+          packInfoNames.push(path)
+        }
+      }
+    })
+    for (const name of packInfoNames) {
+      const entry = zip.file(name)
+      if (entry) {
+        try {
+          const raw = await entry.async('string')
+          packInfo = parsePackInfo(raw)
+          if (packInfo) {
+            console.log(`[upload-icons] Found pack info: ${name}`, packInfo)
+            break
+          }
+        } catch {
+          console.warn(`[upload-icons] Failed to parse pack info ${name}, skipping`)
+        }
+      }
+    }
+
+    // ── 2. Look for icon metadata JSON file ──────────────────────────────
     let meta: MetaMap = {}
     const metaNames = ['icons.json', 'meta.json', '_icons.json']
     for (const name of metaNames) {
@@ -238,7 +297,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── 2. Collect SVG files ────────────────────────────────────────
+    // ── 3. Collect SVG files ────────────────────────────────────────
     const svgFiles: { path: string; zipEntry: JSZip.JSZipObject }[] = []
     zip.forEach((relativePath, zipEntry) => {
       if (!zipEntry.dir && relativePath.toLowerCase().endsWith('.svg')) {
@@ -367,6 +426,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       totalFiles: svgFiles.length,
       icons,
+      packInfo,
     })
   } catch (e: any) {
     console.error('[/api/admin/upload-icons] ERROR:', e?.message || e)

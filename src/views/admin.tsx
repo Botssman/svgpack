@@ -440,7 +440,27 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest }: { pack: Pack;
       const data = await res.json()
       if (data.ok && data.icons?.length > 0) {
         setUploadedIcons(data.icons)
-        toast({ title: `Извлечено ${data.icons.length} иконок из архива` })
+        // Auto-fill pack form from pack-info.json if present
+        if (data.packInfo) {
+          const updates: Partial<typeof form> = {}
+          if (data.packInfo.nameEn && !form.nameEn) updates.nameEn = data.packInfo.nameEn
+          if (data.packInfo.nameRu && !form.nameRu) updates.nameRu = data.packInfo.nameRu
+          if (data.packInfo.descriptionEn && !form.descEn) updates.descEn = data.packInfo.descriptionEn
+          if (data.packInfo.descriptionRu && !form.descRu) updates.descRu = data.packInfo.descriptionRu
+          if (Object.keys(updates).length > 0) {
+            setForm(prev => {
+              const next = { ...prev, ...updates }
+              // Auto-generate slug from nameEn if slug wasn't manually edited
+              if (!slugManuallyEdited && updates.nameEn) {
+                next.slug = nameEnToSlug(updates.nameEn)
+              }
+              return next
+            })
+          }
+          toast({ title: `Извлечено ${data.icons.length} иконок + описание пака из архива` })
+        } else {
+          toast({ title: `Извлечено ${data.icons.length} иконок из архива` })
+        }
       } else {
         toast({ title: data.error || 'В архиве не найдено SVG-файлов' })
       }
