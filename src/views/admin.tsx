@@ -77,6 +77,7 @@ export function Admin() {
     setLoading(false)
   }, [page, q, filterCategory, filterStyle])
 
+  // Fetch stats
   const fetchStats = useCallback(async () => {
     const statsRes = await fetch('/api/admin/stats').then(r => r.json())
     setStats(statsRes)
@@ -87,8 +88,14 @@ export function Admin() {
   }, [fetchStats, fetchPacks])
 
   // Initial load
-  useEffect(() => { fetchStats() }, [fetchStats])
-  useEffect(() => { fetchPacks() }, [fetchPacks])
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  // Fetch packs when filters/pagination change
+  useEffect(() => {
+    fetchPacks()
+  }, [fetchPacks])
 
   const deletePackFromList = async () => {
     if (!deleteTarget) return
@@ -720,7 +727,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           <div className="grid grid-cols-6 gap-2 mb-4">
             {pack.icons.map((ic) => (
               <div key={ic.id} className="aspect-square flex items-center justify-center bg-slate-50 rounded-md border border-slate-100 overflow-hidden">
-                <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={6} />
+                <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} className="max-w-full max-h-full" />
               </div>
             ))}
           </div>
@@ -750,7 +757,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           {newIcon.svg && (
             <div className="flex items-center gap-2 p-3 bg-white rounded-md border border-slate-200">
               <span className="text-xs text-slate-500">Preview:</span>
-              <IconView innerSvg={newIcon.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={2} />
+              <IconView innerSvg={newIcon.svg} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={32} />
             </div>
           )}
           <button
@@ -827,8 +834,8 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
               {uploadedIcons.map((ic, idx) => (
                 <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-md border border-amber-200">
-                  <div className="flex-shrink-0 aspect-square flex items-center justify-center bg-slate-50 rounded border border-slate-100 overflow-hidden">
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={6} />
+                  <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-slate-50 rounded border border-slate-100 overflow-hidden">
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={24} className="max-w-full max-h-full" />
                   </div>
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="grid grid-cols-2 gap-1">
