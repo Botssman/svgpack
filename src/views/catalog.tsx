@@ -17,7 +17,7 @@ type Pack = {
   style: string
   tags: string
   isFree: boolean
-  icons: { id: string; slug: string; nameRu: string; nameEn: string; keywords: string; svg: string }[]
+  icons: { id: string; slug: string; nameRu: string; nameEn: string; keywords: string; svg: string; viewBox: string }[]
 }
 
 export function Catalog() {
@@ -174,7 +174,7 @@ export function Catalog() {
                     key={ic.id}
                     className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
                   >
-                    <IconView innerSvg={ic.svg} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={20} />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={20} />
                   </div>
                 ))}
               </Link>
