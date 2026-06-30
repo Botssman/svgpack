@@ -228,7 +228,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
                     {PREVIEW_ICONS.slice(0, 3).map((ic, i) => (
                       <div key={i} className="rounded-full bg-white p-1 ring-2 ring-white">
                         <div className="h-6 w-6">
-                          <IconView innerSvg={ic} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} fill />
+                          <IconView innerSvg={ic} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={24} />
                         </div>
                       </div>
                     ))}

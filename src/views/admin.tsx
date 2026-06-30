@@ -720,7 +720,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           <div className="grid grid-cols-6 gap-2 mb-4">
             {pack.icons.map((ic) => (
               <div key={ic.id} className="h-24 w-24 flex items-center justify-center bg-slate-50 rounded-md border border-slate-100 overflow-hidden">
-                <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} fill />
+                <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={96} />
               </div>
             ))}
           </div>
@@ -828,7 +828,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
               {uploadedIcons.map((ic, idx) => (
                 <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded-md border border-amber-200">
                   <div className="flex-shrink-0 h-24 w-24 flex items-center justify-center bg-slate-50 rounded border border-slate-100 overflow-hidden">
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} fill />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.5 }} size={96} />
                   </div>
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="grid grid-cols-2 gap-1">
