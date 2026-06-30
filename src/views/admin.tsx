@@ -217,26 +217,64 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
   const [uploading, setUploading] = useState(false)
   const [savingIcons, setSavingIcons] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Convert English name to slug: transliterate, kebab-case, lowercase
+  const nameEnToSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // remove non-latin chars
+      .replace(/\s+/g, '-')           // spaces to hyphens
+      .replace(/-+/g, '-')            // collapse hyphens
+      .replace(/^-|-$/g, '')          // trim hyphens
+  }
+
+  const handleNameEnChange = (v: string) => {
+    const updated = { ...form, nameEn: v }
+    if (!slugManuallyEdited) {
+      updated.slug = nameEnToSlug(v)
+    }
+    setForm(updated)
+  }
+
+  const handleSlugChange = (v: string) => {
+    setSlugManuallyEdited(true)
+    setForm({ ...form, slug: v })
+  }
+
   const savePack = async () => {
+    // Ensure slug is filled from nameEn if empty
+    const dataToSave = { ...form }
+    if (!dataToSave.slug && dataToSave.nameEn) {
+      dataToSave.slug = nameEnToSlug(dataToSave.nameEn)
+      setForm({ ...form, slug: dataToSave.slug })
+    }
+
     if (isNew) {
       const res = await fetch('/api/admin/packs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(dataToSave),
       })
       if (res.ok) {
         toast({ title: t.toast.saved })
         onSaved()
+      } else {
+        const d = await res.json().catch(() => ({}))
+        toast({ title: d.error || 'Ошибка сохранения' })
       }
     } else {
       const res = await fetch(`/api/admin/packs/${pack.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(dataToSave),
       })
       if (res.ok) { toast({ title: t.toast.saved }); onSaved() }
+      else {
+        const d = await res.json().catch(() => ({}))
+        toast({ title: d.error || 'Ошибка сохранения' })
+      }
     }
   }
 
@@ -385,10 +423,10 @@ function PackEditor({ pack, onSaved, onDeleted }: { pack: Pack; onSaved: () => v
 
       <div className="grid sm:grid-cols-2 gap-3">
         <Input label={t.admin.packNameRu} value={form.nameRu} onChange={(v) => setForm({ ...form, nameRu: v })} />
-        <Input label={t.admin.packNameEn} value={form.nameEn} onChange={(v) => setForm({ ...form, nameEn: v })} />
+        <Input label={t.admin.packNameEn} value={form.nameEn} onChange={handleNameEnChange} />
         <Input label={t.admin.packDescRu} value={form.descRu} onChange={(v) => setForm({ ...form, descRu: v })} />
         <Input label={t.admin.packDescEn} value={form.descEn} onChange={(v) => setForm({ ...form, descEn: v })} />
-        <Input label={t.admin.packSlug} value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} disabled={!isNew} />
+        <Input label={t.admin.packSlug} value={form.slug} onChange={handleSlugChange} />
         <Select
           label={t.admin.packCategory}
           value={form.category}
