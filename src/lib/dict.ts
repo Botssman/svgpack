@@ -9,7 +9,7 @@ export type Lang = 'ru' | 'en'
  * `getDict(lang): Dict` in i18n-server.ts.
  */
 export type Dict = {
-  nav: Record<'home' | 'catalog' | 'builder' | 'billing' | 'admin' | 'account' | 'myPacks', string>
+  nav: Record<'home' | 'catalog' | 'icons' | 'builder' | 'billing' | 'admin' | 'account' | 'myPacks', string>
   hero: Record<string, string>
   features: Record<string, string>
   pricing: Record<string, string>
@@ -30,8 +30,9 @@ export const dict: Record<Lang, Dict> = {
   ru: {
     nav: {
       home: 'Главная',
-      catalog: 'Каталог',
-      builder: 'Собрать пак',
+      catalog: 'Паки',
+      icons: 'Иконки',
+      builder: 'Сборка',
       billing: 'Тарифы',
       admin: 'Админка',
       account: 'Кабинет',
@@ -280,8 +281,9 @@ export const dict: Record<Lang, Dict> = {
   en: {
     nav: {
       home: 'Home',
-      catalog: 'Catalog',
-      builder: 'Build Pack',
+      catalog: 'Packs',
+      icons: 'Icons',
+      builder: 'Builder',
       billing: 'Pricing',
       admin: 'Admin',
       account: 'Account',

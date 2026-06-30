@@ -163,6 +163,7 @@ function Header({ itemsCount }: { itemsCount: number }) {
 
   const navItems: { label: string; href: string; badge?: number; adminOnly?: boolean; authOnly?: boolean }[] = [
     { label: t.nav.catalog, href: '/catalog' },
+    { label: t.nav.icons, href: '/icons' },
     { label: t.nav.builder, href: '/builder', badge: itemsCount },
     { label: t.nav.myPacks, href: '/my-packs', authOnly: true },
     { label: t.nav.billing, href: '/pricing' },
@@ -372,6 +373,11 @@ function Footer() {
               <li>
                 <Link href="/catalog" className="text-neutral-600 transition-colors hover:text-neutral-900">
                   {t.footer.catalog}
+                </Link>
+              </li>
+              <li>
+                <Link href="/icons" className="text-neutral-600 transition-colors hover:text-neutral-900">
+                  {lang === 'ru' ? 'Иконки' : 'Icons'}
                 </Link>
               </li>
               <li>

@@ -13,6 +13,7 @@ import { useCallback } from 'react'
 export type View =
   | { name: 'home' }
   | { name: 'catalog' }
+  | { name: 'icons' }
   | { name: 'pack'; slug: string }
   | { name: 'customize'; packSlug: string; iconId?: string }
   | { name: 'builder' }
@@ -28,6 +29,8 @@ export function viewToHref(v: View): string {
       return '/'
     case 'catalog':
       return '/catalog'
+    case 'icons':
+      return '/icons'
     case 'pack':
       return `/catalog/${v.slug}`
     case 'customize':
