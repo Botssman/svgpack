@@ -146,9 +146,21 @@ export function Admin() {
                 <button
                   key={p.id}
                   onClick={async () => {
-                    const res = await fetch(`/api/packs/${p.slug}`)
-                    const d = await res.json()
-                    setSelectedPack(d.pack)
+                    try {
+                      const res = await fetch(`/api/packs/${p.slug}`)
+                      if (!res.ok) {
+                        toast({ title: `Ошибка загрузки: HTTP ${res.status}` })
+                        return
+                      }
+                      const d = await res.json()
+                      if (d.pack) {
+                        setSelectedPack(d.pack)
+                      } else {
+                        toast({ title: 'Пак не найден в базе' })
+                      }
+                    } catch (e) {
+                      toast({ title: 'Ошибка загрузки пака' })
+                    }
                   }}
                   className={`w-full text-left p-3 hover:bg-slate-50 transition-colors ${selectedPack?.id === p.id ? 'bg-slate-50' : ''}`}
                 >
