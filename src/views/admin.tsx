@@ -147,7 +147,7 @@ export function Admin() {
                   key={p.id}
                   onClick={async () => {
                     try {
-                      const res = await fetch(`/api/packs/${p.slug}`)
+                      const res = await fetch(`/api/admin/packs/${p.id}`)
                       if (!res.ok) {
                         toast({ title: `Ошибка загрузки: HTTP ${res.status}` })
                         return
