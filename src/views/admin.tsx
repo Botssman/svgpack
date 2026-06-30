@@ -113,16 +113,44 @@ export function Admin() {
         <StatCard label={t.admin.statsRevenue} value={`$${stats.revenue.toFixed(2)}`} />
       </div>
 
-      {/* Sync button */}
-      <div className="mb-8">
-        <button
-          onClick={syncPacks}
-          disabled={syncing}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {syncing ? 'Синхронизация...' : '🔄 Синхронизировать паки из кода'}
-        </button>
-        <p className="mt-1 text-xs text-slate-500">Обновляет все паки из кода в базу данных</p>
+      {/* Sync + Fix buttons */}
+      <div className="mb-8 flex flex-wrap gap-3">
+        <div>
+          <button
+            onClick={syncPacks}
+            disabled={syncing}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {syncing ? 'Синхронизация...' : '🔄 Синхронизировать паки из кода'}
+          </button>
+          <p className="mt-1 text-xs text-slate-500">Обновляет все паки из кода в базу данных</p>
+        </div>
+        <div>
+          <button
+            onClick={async () => {
+              setSyncing(true)
+              try {
+                const res = await fetch('/api/admin/fix-viewbox', { method: 'POST' })
+                const data = await res.json()
+                if (data.ok) {
+                  toast({ title: `Исправлено ${data.fixed} иконок (из ${data.total})` })
+                  refresh()
+                } else {
+                  toast({ title: 'Ошибка исправления viewBox' })
+                }
+              } catch {
+                toast({ title: 'Ошибка исправления viewBox' })
+              } finally {
+                setSyncing(false)
+              }
+            }}
+            disabled={syncing}
+            className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            🔧 Исправить viewBox
+          </button>
+          <p className="mt-1 text-xs text-slate-500">Автоисправление viewBox для иконок с обрезанными превью</p>
+        </div>
       </div>
 
       {/* Two panes: packs list + pack editor */}

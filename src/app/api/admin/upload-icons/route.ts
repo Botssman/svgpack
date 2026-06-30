@@ -259,10 +259,19 @@ export async function POST(req: NextRequest) {
     for (const { path, zipEntry } of svgFiles) {
       const svgContent = await zipEntry.async('string')
 
-      // Extract viewBox
+      // Extract viewBox — handle both single and double quotes
       let viewBox = '0 0 24 24'
-      const vbMatch = svgContent.match(/viewBox\s*=\s*"([^"]+)"/)
-      if (vbMatch) viewBox = vbMatch[1]
+      const vbMatch = svgContent.match(/viewBox\s*=\s*["']([^"']+)["']/)
+      if (vbMatch) {
+        viewBox = vbMatch[1]
+      } else {
+        // Fallback: try width/height attributes
+        const wMatch = svgContent.match(/\bwidth\s*=\s*["']?(\d+(?:\.\d+)?)["'?]/)
+        const hMatch = svgContent.match(/\bheight\s*=\s*["']?(\d+(?:\.\d+)?)["'?]/)
+        if (wMatch && hMatch) {
+          viewBox = `0 0 ${wMatch[1]} ${hMatch[1]}`
+        }
+      }
 
       // Extract inner SVG
       let innerSvg = svgContent
@@ -271,6 +280,26 @@ export async function POST(req: NextRequest) {
         innerSvg = innerMatch[1].trim()
       } else {
         innerSvg = svgContent.trim()
+      }
+
+      // Auto-detect viewBox from coordinates if it looks wrong
+      // e.g. viewBox="0 0 24 24" but paths use coordinates in 0-100 range
+      const vbParts = viewBox.split(/[\s,]+/).map(Number)
+      if (vbParts.length === 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
+        const maxCoord = vbParts[2] // expected max coordinate
+        // Extract all numeric values from path data to find actual coordinate range
+        const coordMatches = innerSvg.match(/[\d.]+/g)
+        if (coordMatches) {
+          const nums = coordMatches.map(Number).filter(n => !isNaN(n) && n > 1)
+          if (nums.length > 0) {
+            const actualMax = Math.max(...nums)
+            // If max coordinate is significantly larger than viewBox, auto-fix
+            if (actualMax > maxCoord * 1.5) {
+              const scale = Math.ceil(actualMax / 10) * 10 // round up to nearest 10
+              viewBox = `0 0 ${scale} ${scale}`
+            }
+          }
+        }
       }
 
       // ── Parse filename ──────────────────────────────────────────
