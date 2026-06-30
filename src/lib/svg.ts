@@ -211,7 +211,7 @@ function diamondBg(fill: string): string {
  * innerSvg — содержимое <svg>...</svg> (paths, circles и т.д.) из БД.
  * viewBox — обычно "0 0 24 24".
  */
-export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig): string {
+export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig, omitWidthHeight?: boolean): string {
   const size = cfg.size
   const animId = Math.random().toString(36).slice(2, 8)
 
@@ -481,7 +481,8 @@ export function renderSvg(innerSvg: string, viewBox: string, cfg: CustomConfig):
   const lineJoinAttr = `stroke-linejoin="${cfg.lineJoin}"`
   const dashAttr = dashArray ? ` stroke-dasharray="${dashArray}"` : ''
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${effectiveViewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" ${lineCapAttr} ${lineJoinAttr}${dashAttr}>${inner}</svg>`
+  const sizeAttrs = omitWidthHeight ? '' : ` width="${size}" height="${size}"`
+  return `<svg xmlns="http://www.w3.org/2000/svg"${sizeAttrs} viewBox="${effectiveViewBox}" fill="none" ${strokeAttr} stroke-width="${cfg.strokeWidth}" ${lineCapAttr} ${lineJoinAttr}${dashAttr}>${inner}</svg>`
 }
 
 /**
