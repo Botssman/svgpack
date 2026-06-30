@@ -1,38 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
-// GET /api/packs — список паков с иконками, поддержка поиска и фильтра
+// GET /api/packs — список паков с иконками, server-side пагинация и фильтрация
+// Параметры: ?q=поиск&category=языки&style=outline&isFree=true&page=1&limit=12
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const q = (searchParams.get('q') || '').toLowerCase().trim()
     const category = searchParams.get('category') || ''
+    const style = searchParams.get('style') || ''
+    const isFreeParam = searchParams.get('isFree')
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '12')))
+    const skip = (page - 1) * limit
 
-    const packs = await db.pack.findMany({
-      include: { icons: { select: { id: true, slug: true, nameRu: true, nameEn: true, keywords: true, svg: true } } },
-      orderBy: { createdAt: 'asc' },
-    })
+    // Build DB-level where clause
+    const where: any = {}
 
-    let filtered = packs
     if (category && category !== 'all') {
-      filtered = filtered.filter((p) => p.category === category)
+      where.category = category
     }
-    if (q) {
-      filtered = filtered
-        .map((p) => ({
-          ...p,
-          icons: (p.icons || []).filter(
-            (ic) =>
-              (ic?.slug?.toLowerCase() ?? '').includes(q) ||
-              (ic?.nameRu?.toLowerCase() ?? '').includes(q) ||
-              (ic?.nameEn?.toLowerCase() ?? '').includes(q) ||
-              (ic?.keywords?.toLowerCase() ?? '').includes(q),
-          ),
-        }))
-        .filter((p) => p.icons.length > 0)
+    if (style) {
+      where.style = style
+    }
+    if (isFreeParam === 'true') {
+      where.isFree = true
+    } else if (isFreeParam === 'false') {
+      where.isFree = false
     }
 
-    return NextResponse.json({ packs: filtered })
+    // Search by pack name/slug OR by icon names within the pack
+    if (q) {
+      where.OR = [
+        { nameRu: { contains: q } },
+        { nameEn: { contains: q } },
+        { slug: { contains: q } },
+        { tags: { contains: q } },
+        { icons: { some: { OR: [
+          { slug: { contains: q } },
+          { nameRu: { contains: q } },
+          { nameEn: { contains: q } },
+          { keywords: { contains: q } },
+        ] } } },
+      ]
+    }
+
+    const [packs, total] = await Promise.all([
+      db.pack.findMany({
+        where,
+        include: {
+          icons: {
+            select: { id: true, slug: true, nameRu: true, nameEn: true, keywords: true, svg: true, viewBox: true },
+            // If searching by icon keywords, filter icons within matching packs
+            ...(q ? {
+              where: {
+                OR: [
+                  { slug: { contains: q } },
+                  { nameRu: { contains: q } },
+                  { nameEn: { contains: q } },
+                  { keywords: { contains: q } },
+                ],
+              },
+            } : {}),
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+        skip,
+        take: limit,
+      }),
+      db.pack.count({ where }),
+    ])
+
+    return NextResponse.json({
+      packs,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    })
   } catch (e: any) {
     console.error('[/api/packs] ERROR:', e?.message || e)
     console.error('[/api/packs] STACK:', e?.stack)

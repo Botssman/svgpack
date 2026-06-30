@@ -44,11 +44,50 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ pack })
 }
 
-// GET /api/admin/packs — список всех паков (для админки, без иконок)
-export async function GET() {
-  const packs = await db.pack.findMany({
-    include: { _count: { select: { icons: true } } },
-    orderBy: { createdAt: 'desc' },
+// GET /api/admin/packs — список паков для админки с пагинацией и фильтрацией
+// Параметры: ?q=поиск&category=языки&style=outline&page=1&limit=20
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const q = (searchParams.get('q') || '').toLowerCase().trim()
+  const category = searchParams.get('category') || ''
+  const styleParam = searchParams.get('style') || ''
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1'))
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
+  const skip = (page - 1) * limit
+
+  // Build DB-level where clause
+  const where: any = {}
+
+  if (category) {
+    where.category = category
+  }
+  if (styleParam) {
+    where.style = styleParam
+  }
+  if (q) {
+    where.OR = [
+      { nameRu: { contains: q } },
+      { nameEn: { contains: q } },
+      { slug: { contains: q } },
+    ]
+  }
+
+  const [packs, total] = await Promise.all([
+    db.pack.findMany({
+      where,
+      include: { _count: { select: { icons: true } } },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+    }),
+    db.pack.count({ where }),
+  ])
+
+  return NextResponse.json({
+    packs,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
   })
-  return NextResponse.json({ packs })
 }
