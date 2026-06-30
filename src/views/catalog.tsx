@@ -382,14 +382,14 @@ export function Catalog() {
                 {/* Icon preview grid */}
                 <Link
                   href={`/catalog/${pack.slug}`}
-                  className="grid w-full grid-cols-6 gap-2 bg-neutral-50/60 p-5 transition-colors hover:bg-neutral-100"
+                  className="grid w-full grid-cols-6 gap-1 bg-neutral-50/60 p-5 transition-colors hover:bg-neutral-100"
                 >
                   {pack.icons.slice(0, 12).map((ic) => (
                     <div
                       key={ic.id}
-                      className="flex h-24 w-24 items-center justify-center rounded-lg border border-neutral-100 bg-white"
+                      className="flex aspect-square items-center justify-center rounded-lg border border-neutral-100 bg-white"
                     >
-                      <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={96} />
+                      <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0a0a0a', strokeWidth: 1.5 }} size={80} />
                     </div>
                   ))}
                 </Link>

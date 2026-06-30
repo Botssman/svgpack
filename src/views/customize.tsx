@@ -1201,7 +1201,7 @@ export function Customize({ packSlug, iconId, nav }: { packSlug: string; iconId?
                         : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
                     }`}
                   >
-                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={cfgFor(ic.id).animation !== 'none' ? 18 : 24} />
+                    <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={cfgFor(ic.id)} size={80} />
                     {isOverridden && (
                       <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-amber-400 border-2 border-white" />
                     )}

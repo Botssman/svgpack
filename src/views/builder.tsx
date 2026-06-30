@@ -284,7 +284,7 @@ export function Builder({ nav }: { nav: (v: View) => void }) {
           {items.map((item) => (
             <div key={item.iconId} className="group rounded-xl border border-slate-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:shadow-lift">
               <div className="aspect-square flex items-center justify-center bg-slate-50 rounded-lg mb-3">
-                <IconView innerSvg={item.svg} viewBox={item.viewBox} cfg={cfg} size={32} />
+                <IconView innerSvg={item.svg} viewBox={item.viewBox} cfg={cfg} size={96} />
               </div>
               <div className="text-sm font-medium text-slate-900 truncate">{item.name}</div>
               <div className="text-xs text-slate-500 mb-2 truncate">{item.packSlug}</div>
