@@ -114,7 +114,7 @@ export function PackView({ slug }: { slug: string }) {
         {pack.icons.map((ic) => (
           <div key={ic.id} className="group rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:shadow-sm transition-all hover:-translate-y-0.5">
             <div className="aspect-square flex items-center justify-center bg-slate-50 rounded-lg mb-3 group-hover:bg-slate-100 transition-colors">
-              <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={40} />
+              <IconView innerSvg={ic.svg} viewBox={ic.viewBox} cfg={{ color: '#0F172A', strokeWidth: 1.75 }} fill />
             </div>
             <div className="text-sm font-medium text-slate-900 truncate">{lang === 'ru' ? ic.nameRu : ic.nameEn}</div>
             <div className="text-xs text-slate-500 mb-3">{ic.slug}</div>
