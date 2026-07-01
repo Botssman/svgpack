@@ -4,6 +4,7 @@ import React, { useState, useCallback, useRef, useSyncExternalStore } from 'reac
 import { useIconStore, defaultIconConfig, IconShape, IconStyle, FillMode, GenMode } from '@/lib/icon-store'
 import { renderIconSVG, svgToPng } from '@/lib/ai-svg-renderer'
 import { useToast } from '@/hooks/use-toast'
+import JSZip from 'jszip'
 
 // ─── Slugify helper ──────────────────────────────────────────────────
 function slugify(text: string): string {
@@ -329,6 +330,34 @@ function WrapperSettings() {
             </div>
             {!config.backgroundTransparent && (
               <ColorInput label="Цвет" value={config.backgroundColor} onChange={(v) => setConfig({ backgroundColor: v })} />
+            )}
+          </div>
+
+          {/* Text */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide">Текст</label>
+              <ToggleSwitch checked={config.textEnabled} onChange={(v) => setConfig({ textEnabled: v })} />
+            </div>
+            {config.textEnabled && (
+              <div className="space-y-2 pl-1">
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-medium text-slate-500 min-w-[70px]">Текст</label>
+                  <input
+                    type="text"
+                    value={config.textContent}
+                    onChange={(e) => setConfig({ textContent: e.target.value })}
+                    className="w-full px-3 py-1 rounded-md border border-slate-200 text-sm h-7 text-xs"
+                    maxLength={10}
+                  />
+                </div>
+                <ColorInput label="Цвет" value={config.textColor} onChange={(v) => setConfig({ textColor: v })} />
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-medium text-slate-500 min-w-[70px]">Размер</label>
+                  <NativeSlider value={config.textFontSize} onChange={(v) => setConfig({ textFontSize: v })} min={50} max={400} step={10} />
+                  <span className="text-xs text-slate-500 w-8 text-right">{config.textFontSize}</span>
+                </div>
+              </div>
             )}
           </div>
 
@@ -825,7 +854,7 @@ function IconPreview() {
     setExporting(true)
     try {
       const exportSvg = renderIconSVG(config, true, exportSize, iconName)
-      const blob = await svgToPng(exportSvg, exportSize)
+      const blob = await svgToPng(exportSvg, exportSize, config.backgroundTransparent)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -865,15 +894,16 @@ function IconPreview() {
             }}
           >
             {hasAiImage && aiImgUrl ? (
-              <div className="w-full h-full relative" style={{ clipPath: shapeClipPath }}>
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: config.backgroundTransparent ? 'transparent'
-                      : config.gradientEnabled ? `linear-gradient(${config.gradientDirection}deg, ${config.gradientFrom}, ${config.gradientTo})`
-                      : config.backgroundColor,
-                  }}
-                />
+              <div className="w-full h-full relative" style={(!config.backgroundTransparent || config.strokeEnabled) ? { clipPath: shapeClipPath } : undefined}>
+                {!config.backgroundTransparent && (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background: config.gradientEnabled ? `linear-gradient(${config.gradientDirection}deg, ${config.gradientFrom}, ${config.gradientTo})`
+                        : config.backgroundColor,
+                    }}
+                  />
+                )}
                 <img src={aiImgUrl} alt="AI generated icon" className="absolute inset-0 w-full h-full object-contain p-[11%]" />
                 {config.strokeEnabled && (
                   <div className="absolute inset-0" style={{ clipPath: shapeClipPath, border: `${config.strokeWidth}px solid ${config.strokeColor}`, boxSizing: 'border-box' }} />
@@ -927,38 +957,142 @@ function IconPreview() {
 
 // ─── Icon Pack Section ────────────────────────────────────────────
 function IconPackSection() {
+  const { savedIcons } = useIconStore()
   const [packTheme, setPackTheme] = useState('')
+  const [iconCount, setIconCount] = useState(10)
+  const [generating, setGenerating] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0, log: '' })
+  const abortRef = useRef<AbortController | null>(null)
   const { toast } = useToast()
+
+  const handleStop = useCallback(() => {
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null }
+  }, [])
 
   const handleGeneratePack = useCallback(async () => {
     if (!packTheme.trim()) {
       toast({ title: 'Введите тему пакета', variant: 'destructive' })
       return
     }
-    toast({ title: 'Пакетная генерация: используйте кнопку «Список» выше с темой пакета' })
-  }, [packTheme, toast])
+    const ac = new AbortController()
+    abortRef.current = ac
+    setGenerating(true)
+    setProgress({ current: 0, total: 0, log: 'Загрузка списка иконок...' })
+
+    try {
+      // Get icon list from AI
+      const packRes = await fetch('/api/admin/generate-pack-list', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: packTheme.trim(), count: iconCount }),
+        signal: ac.signal,
+      })
+      if (!packRes.ok) throw new Error('Не удалось получить список иконок')
+      const packData = await packRes.json()
+      const icons = packData.icons || packData
+      if (!Array.isArray(icons) || icons.length === 0) throw new Error('Пустой список иконок')
+
+      setProgress({ current: 0, total: icons.length, log: `Найдено ${icons.length} иконок, начинаю генерацию...` })
+
+      let successCount = 0
+      const delay = (ms: number) => new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, ms)
+        ac.signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')) }, { once: true })
+      })
+
+      for (let i = 0; i < icons.length; i++) {
+        if (ac.signal.aborted) break
+        setProgress(p => ({ ...p, current: i + 1, log: `[${i + 1}/${icons.length}] ${icons[i]?.name || icons[i]}...` }))
+        if (i > 0) await delay(3000 + Math.random() * 3000)
+        if (ac.signal.aborted) break
+
+        try {
+          const iconPrompt = typeof icons[i] === 'string' ? icons[i] : icons[i].prompt || icons[i].name
+          const iconStyle = 'minimal'
+          const fillMode = 'outlined'
+          const dataUrl = await fetchPollinationsImage(iconPrompt, iconStyle, fillMode, ac.signal)
+          const name = typeof icons[i] === 'string' ? icons[i] : icons[i].name || `icon-${i + 1}`
+          const nameRu = typeof icons[i] === 'string' ? icons[i] : icons[i].nameRu || icons[i].name || `icon-${i + 1}`
+          useIconStore.getState().setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '', backgroundTransparent: true })
+          useIconStore.getState().saveIcon(slugify(name), nameRu)
+          successCount++
+        } catch (err) {
+          if (ac.signal.aborted) break
+          setProgress(p => ({ ...p, log: `[${i + 1}/${icons.length}] ошибка, пропускаю...` }))
+        }
+      }
+
+      if (ac.signal.aborted) {
+        toast({ title: `Остановлено: ${successCount}/${icons.length}` })
+      } else {
+        setProgress(p => ({ ...p, log: `Готово! ${successCount}/${icons.length} иконок` }))
+        toast({ title: `${successCount}/${icons.length} иконок сгенерировано!` })
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        toast({ title: 'Генерация остановлена' })
+      } else {
+        const msg = err instanceof Error ? err.message : 'Ошибка генерации пакета'
+        toast({ title: msg, variant: 'destructive' })
+      }
+    } finally {
+      setGenerating(false)
+      abortRef.current = null
+    }
+  }, [packTheme, iconCount, toast])
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2 mb-3">
         <IconPackage className="w-4 h-4" />
-        Пакет иконок
+        Пак иконок
       </h3>
       <div className="space-y-3">
         <input
           type="text"
           value={packTheme}
           onChange={(e) => setPackTheme(e.target.value)}
-          placeholder="Тема пакета (например: weather, social media)"
+          placeholder="Тема пакета (например: weather, social media, food)"
           className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm h-8 text-xs"
+          disabled={generating}
         />
-        <button
-          onClick={handleGeneratePack}
-          className="w-full px-4 py-2 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 h-8 text-xs flex items-center justify-center"
-        >
-          <IconPackage className="w-3.5 h-3.5 mr-1.5" />
-          Сгенерировать пакет
-        </button>
+        <div className="flex items-center gap-2">
+          <label className="block text-xs font-medium text-slate-500 min-w-[70px]">Кол-во</label>
+          <NativeSlider value={iconCount} onChange={setIconCount} min={3} max={30} step={1} />
+          <span className="text-xs text-slate-500 w-6 text-right">{iconCount}</span>
+        </div>
+
+        {generating ? (
+          <div className="space-y-2">
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-slate-900 rounded-full transition-all duration-300"
+                style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-500 font-mono">{progress.log}</p>
+            <button
+              onClick={handleStop}
+              className="w-full px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-medium hover:bg-rose-700 flex items-center justify-center"
+            >
+              <IconXCircle className="w-3.5 h-3.5 mr-1.5" />Стоп
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleGeneratePack}
+            className="w-full px-4 py-2 rounded-md bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 h-8 text-xs flex items-center justify-center"
+          >
+            <IconSparkles className="w-3.5 h-3.5 mr-1.5" />
+            Сгенерировать пак ({iconCount} иконок)
+          </button>
+        )}
+
+        {savedIcons.length > 0 && (
+          <p className="text-xs text-slate-400 text-center">
+            В галерее: {savedIcons.length} иконок — используйте «Скачать пак» выше
+          </p>
+        )}
       </div>
     </div>
   )
@@ -974,6 +1108,7 @@ function IconGallery() {
   const [packs, setPacks] = useState<{ id: string; nameRu: string; nameEn: string; slug: string }[]>([])
   const [selectedPackId, setSelectedPackId] = useState('')
   const [showUploadFor, setShowUploadFor] = useState<string | null>(null)
+  const [exportingPack, setExportingPack] = useState(false)
   const isClient = useIsClient()
   const { toast } = useToast()
 
@@ -1062,6 +1197,53 @@ function IconGallery() {
     URL.revokeObjectURL(url)
   }, [])
 
+  const handleExportPackZip = useCallback(async () => {
+    if (savedIcons.length === 0) {
+      toast({ title: 'Нет иконок для экспорта', variant: 'destructive' })
+      return
+    }
+    setExportingPack(true)
+    try {
+      const zip = new JSZip()
+      const svgFolder = zip.folder('svg')
+      const pngFolder = zip.folder('png')
+
+      for (const icon of savedIcons) {
+        const titleName = icon.nameRu || icon.name
+        const iconSlug = slugify(titleName) || slugify(icon.name) || 'icon'
+        const exportSvg = renderIconSVG(icon.config, true, 512, titleName)
+
+        // Add SVG file
+        svgFolder?.file(`${iconSlug}.svg`, exportSvg)
+
+        // Generate PNG from SVG (transparent if config says so)
+        try {
+          const pngBlob = await svgToPng(exportSvg, 512, icon.config.backgroundTransparent)
+          pngFolder?.file(`${iconSlug}.png`, pngBlob)
+        } catch {
+          // Skip PNG if conversion fails for this icon
+          console.warn(`Failed to generate PNG for ${iconSlug}`)
+        }
+      }
+
+      // Generate ZIP
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(zipBlob)
+      const a = document.createElement('a')
+      a.href = url
+      const packName = slugify(savedIcons[0]?.nameRu || savedIcons[0]?.name || 'icon-pack') || 'icon-pack'
+      a.download = `${packName}-pack.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: `Пак из ${savedIcons.length} иконок скачан!` })
+    } catch (err) {
+      console.error('Pack export error:', err)
+      toast({ title: 'Ошибка экспорта пака', variant: 'destructive' })
+    } finally {
+      setExportingPack(false)
+    }
+  }, [savedIcons, toast])
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
       <div className="p-4 pb-3">
@@ -1097,6 +1279,21 @@ function IconGallery() {
         >
           <IconPlus className="w-3.5 h-3.5 mr-1" />Сохранить в галерею
         </button>
+
+        {/* Export pack as ZIP */}
+        {savedIcons.length > 0 && (
+          <button
+            onClick={handleExportPackZip}
+            disabled={exportingPack}
+            className="w-full px-4 py-2 rounded-md border border-slate-200 text-sm text-slate-700 hover:bg-slate-50 h-8 text-xs flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {exportingPack ? (
+              <><IconLoader className="w-3.5 h-3.5 mr-1.5" />Упаковка...</>
+            ) : (
+              <><IconPackage className="w-3.5 h-3.5 mr-1.5" />Скачать пак ({savedIcons.length} SVG + PNG)</>
+            )}
+          </button>
+        )}
 
         {/* Pack selector for uploading to catalog */}
         {savedIcons.length > 0 && (

@@ -115,9 +115,12 @@ export function renderIconSVG(config: IconConfig, forExport = false, exportSize 
       .replace(/(="#[0-9a-fA-F]{6})([0-9a-fA-F]{2})(")/g, '$1$3')  // Strip 8-digit hex alpha in attribute values
   }
 
-  // When background is transparent, skip the wrapper shape entirely — only render content
+  // When background is transparent and no stroke/shadow, skip the wrapper shape entirely — only render content
+  // This produces a clean transparent SVG with no background rect at all
   if (config.backgroundTransparent && !config.strokeEnabled && !config.shadowEnabled) {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" ${sizeAttrs}>${titleElement}${textElement}${aiContent}</svg>`
+    // For AI image mode with transparent bg, still embed image but with no background
+    const defs = gradientDef ? `<defs>${gradientDef}</defs>` : ''
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" ${sizeAttrs}>${titleElement}${defs}${textElement}${aiContent}</svg>`
   }
 
   // Combined defs
@@ -149,7 +152,7 @@ export function svgToDataUrl(svg: string): string {
   return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`
 }
 
-export async function svgToPng(svgString: string, size: number): Promise<Blob> {
+export async function svgToPng(svgString: string, size: number, transparent = true): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const dataUrl = svgToDataUrl(svgString)
@@ -161,6 +164,10 @@ export async function svgToPng(svgString: string, size: number): Promise<Blob> {
       if (!ctx) {
         reject(new Error('Could not get canvas context'))
         return
+      }
+      // Clear canvas to transparent (no white fill) when transparent=true
+      if (transparent) {
+        ctx.clearRect(0, 0, size, size)
       }
       ctx.drawImage(img, 0, 0, size, size)
       canvas.toBlob((blob) => {
