@@ -758,6 +758,56 @@ function AIPromptSection() {
           </div>
         </div>
 
+        {/* Text on icon toggle */}
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-slate-500">Текст на иконке</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              className={`px-4 py-2 rounded-lg text-sm font-medium h-8 text-xs transition-colors ${
+                !config.textEnabled
+                  ? 'bg-slate-900 text-white hover:bg-slate-700'
+                  : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+              onClick={() => setConfig({ textEnabled: false })}
+              disabled={isGenerating}
+            >
+              Без текста
+            </button>
+            <button
+              className={`px-4 py-2 rounded-lg text-sm font-medium h-8 text-xs transition-colors ${
+                config.textEnabled
+                  ? 'bg-slate-900 text-white hover:bg-slate-700'
+                  : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+              onClick={() => setConfig({ textEnabled: true })}
+              disabled={isGenerating}
+            >
+              С текстом
+            </button>
+          </div>
+          {config.textEnabled && (
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <input
+                type="text"
+                value={config.textContent}
+                onChange={(e) => setConfig({ textContent: e.target.value })}
+                placeholder="Текст (1-3 символа)"
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm h-8 text-xs"
+                maxLength={10}
+              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={config.textColor}
+                  onChange={(e) => setConfig({ textColor: e.target.value })}
+                  className="w-7 h-7 rounded cursor-pointer border border-slate-200 shrink-0"
+                />
+                <span className="text-xs text-slate-500">Цвет текста</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Action buttons */}
         <div className="flex gap-2">
           <button
