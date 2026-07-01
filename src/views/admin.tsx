@@ -4,6 +4,7 @@ import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useUser } from '@/lib/user-store'
 import { useToast } from '@/hooks/use-toast'
+import { IconGenerator } from '@/views/icon-generator'
 
 type UploadedIcon = {
   slug: string
@@ -25,6 +26,7 @@ export function Admin() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const { user } = useUser()
+  const [activeTab, setActiveTab] = useState<'packs' | 'generator'>('packs')
   const [stats, setStats] = useState({ packs: 0, icons: 0, users: 0, revenue: 0 })
   const [packs, setPacks] = useState<Pack[]>([])
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null)
@@ -179,6 +181,35 @@ export function Admin() {
         <StatCard label={t.admin.statsUsers} value={stats.users} />
         <StatCard label={t.admin.statsRevenue} value={`$${stats.revenue.toFixed(2)}`} />
       </div>
+
+      {/* Tabs */}
+      <div className="mb-6 flex gap-1 border-b border-slate-200">
+        <button
+          onClick={() => setActiveTab('packs')}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'packs'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          Паки
+        </button>
+        <button
+          onClick={() => setActiveTab('generator')}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'generator'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          AI Генератор
+        </button>
+      </div>
+
+      {/* Tab content */}
+      {activeTab === 'generator' ? (
+        <IconGenerator />
+      ) : (<>
 
       {/* Sync + Fix buttons */}
       <div className="mb-8 flex flex-wrap gap-3">
@@ -384,6 +415,7 @@ export function Admin() {
           )}
         </div>
       </div>
+      </>)}
     </div>
   )
 }
