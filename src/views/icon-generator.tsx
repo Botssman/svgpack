@@ -5,6 +5,16 @@ import { useIconStore, defaultIconConfig, IconShape, IconStyle, FillMode, GenMod
 import { renderIconSVG, svgToPng } from '@/lib/ai-svg-renderer'
 import { useToast } from '@/hooks/use-toast'
 
+// ─── Slugify helper ──────────────────────────────────────────────────
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[а-яё]/g, c => ({ 'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya' }[c] || c))
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 // ─── Inline SVG Icons (replacing lucide-react) ─────────────────────
 function IconDownload({ className = 'w-4 h-4' }: { className?: string }) {
   return (
@@ -486,7 +496,7 @@ function AIPromptSection() {
             setBatchLog((prev) => [...prev, `  ... ${icons[i].name} - генерация...`])
             const dataUrl = await fetchPollinationsImage(icons[i].prompt, style, fillMode, ac.signal)
             setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '' })
-            useIconStore.getState().saveIcon(icons[i].name)
+            useIconStore.getState().saveIcon(icons[i].name, icons[i].nameRu || icons[i].name)
             successCount++
             consecutiveErrors = 0
             iconGenerated = true
@@ -571,7 +581,7 @@ function AIPromptSection() {
           const dataUrl = await fetchPollinationsImage(iconPrompt, style, fillMode, ac.signal)
           setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '' })
           const name = typeof icons[i] === 'string' ? icons[i] : icons[i].name || `icon-${i + 1}`
-          useIconStore.getState().saveIcon(name)
+          useIconStore.getState().saveIcon(name, name)
           successCount++
           setBatchLog((prev) => [...prev, `  + ${name}`])
         } catch (err) {
@@ -652,6 +662,19 @@ function AIPromptSection() {
           className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm min-h-[120px] resize-y"
           maxLength={30000}
         />
+
+        {/* Icon name (Russian) — used as <title> in SVG and for catalog */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-medium text-slate-500">Название иконки (по-русски)</label>
+          <input
+            type="text"
+            value={config.iconNameRu}
+            onChange={(e) => setConfig({ iconNameRu: e.target.value })}
+            placeholder="Например: Кот, Дом, Настройки"
+            className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm h-8 text-xs"
+            maxLength={50}
+          />
+        </div>
 
         {/* Style selector */}
         <div className="space-y-2">
@@ -783,27 +806,30 @@ function IconPreview() {
     }
   }, [hasAiImage, config.aiImageContent])
 
+  const iconName = config.iconNameRu || 'icon'
+  const iconSlug = slugify(iconName) || 'icon'
+
   const handleExportSVG = useCallback(() => {
-    const exportSvg = renderIconSVG(config, true, exportSize)
+    const exportSvg = renderIconSVG(config, true, exportSize, iconName)
     const blob = new Blob([exportSvg], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `icon-${exportSize}x${exportSize}.svg`
+    a.download = `${iconSlug}.svg`
     a.click()
     URL.revokeObjectURL(url)
     toast({ title: 'SVG сохранён!' })
-  }, [config, exportSize, toast])
+  }, [config, exportSize, iconName, iconSlug, toast])
 
   const handleExportPNG = useCallback(async () => {
     setExporting(true)
     try {
-      const exportSvg = renderIconSVG(config, true, exportSize)
+      const exportSvg = renderIconSVG(config, true, exportSize, iconName)
       const blob = await svgToPng(exportSvg, exportSize)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `icon-${exportSize}x${exportSize}.png`
+      a.download = `${iconSlug}.png`
       a.click()
       URL.revokeObjectURL(url)
       toast({ title: 'PNG сохранён!' })
@@ -812,7 +838,7 @@ function IconPreview() {
     } finally {
       setExporting(false)
     }
-  }, [config, exportSize, toast])
+  }, [config, exportSize, iconName, iconSlug, toast])
 
   const shapeClipPath = config.shape === 'circle'
     ? 'circle(50% at 50% 50%)'
@@ -942,16 +968,30 @@ function IconPackSection() {
 function IconGallery() {
   const { savedIcons, saveIcon, deleteIcon, clearAllIcons, loadIcon } = useIconStore()
   const [saveName, setSaveName] = useState('')
+  const [saveNameRu, setSaveNameRu] = useState('')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [packs, setPacks] = useState<{ id: string; nameRu: string; nameEn: string; slug: string }[]>([])
+  const [selectedPackId, setSelectedPackId] = useState('')
+  const [showUploadFor, setShowUploadFor] = useState<string | null>(null)
   const isClient = useIsClient()
   const { toast } = useToast()
 
+  // Fetch packs for upload dropdown
+  React.useEffect(() => {
+    fetch('/api/admin/packs?limit=100')
+      .then(r => r.json())
+      .then(data => setPacks(data.packs || []))
+      .catch(() => {})
+  }, [])
+
   const handleSave = useCallback(() => {
     if (!saveName.trim()) { toast({ title: 'Введите имя', variant: 'destructive' }); return }
-    saveIcon(saveName.trim())
+    saveIcon(saveName.trim(), saveNameRu.trim() || undefined)
     setSaveName('')
+    setSaveNameRu('')
     toast({ title: 'Иконка сохранена!' })
-  }, [saveName, saveIcon, toast])
+  }, [saveName, saveNameRu, saveIcon, toast])
 
   const handleEdit = useCallback((id: string) => {
     loadIcon(id)
@@ -969,13 +1009,55 @@ function IconGallery() {
     toast({ title: 'Галерея очищена' })
   }, [clearAllIcons, toast])
 
+  const handleUploadToCatalog = useCallback(async (icon: typeof savedIcons[0]) => {
+    if (!selectedPackId) {
+      toast({ title: 'Выберите пак для загрузки', variant: 'destructive' })
+      return
+    }
+    setUploadingId(icon.id)
+    try {
+      const iconSlug = slugify(icon.nameRu || icon.name) || slugify(icon.name) || 'icon'
+      const nameRu = icon.nameRu || icon.name
+      const nameEn = icon.name
+      // Render SVG for export (512px, with Russian title)
+      const svgContent = renderIconSVG(icon.config, true, 512, nameRu)
+      // For catalog, we need clean inner SVG without wrapper — extract inner content
+      // But upload API accepts full SVG, so send it as-is with viewBox 0 0 512 512
+      const res = await fetch('/api/admin/icons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          packId: selectedPackId,
+          slug: iconSlug,
+          nameRu,
+          nameEn,
+          keywords: iconSlug.replace(/-/g, ' '),
+          svg: svgContent,
+          viewBox: '0 0 512 512',
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      toast({ title: `Иконка «${nameRu}» добавлена в каталог!` })
+      setShowUploadFor(null)
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : 'Ошибка загрузки', variant: 'destructive' })
+    } finally {
+      setUploadingId(null)
+    }
+  }, [selectedPackId, toast])
+
   const handleGalleryExportSVG = useCallback((icon: typeof savedIcons[0]) => {
-    const exportSvg = renderIconSVG(icon.config, true, 128)
+    const titleName = icon.nameRu || icon.name
+    const iconSlug = slugify(titleName) || slugify(icon.name) || 'icon'
+    const exportSvg = renderIconSVG(icon.config, true, 512, titleName)
     const blob = new Blob([exportSvg], { type: 'image/svg+xml' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${icon.name}.svg`
+    a.download = `${iconSlug}.svg`
     a.click()
     URL.revokeObjectURL(url)
   }, [])
@@ -989,23 +1071,49 @@ function IconGallery() {
         </h3>
       </div>
       <div className="p-4 pt-0 space-y-3">
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <input
             type="text"
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
-            placeholder="Имя для сохранения"
+            placeholder="Имя (slug, en)"
             className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm h-8 text-xs"
             maxLength={30}
             onKeyDown={(e) => e.key === 'Enter' && handleSave()}
           />
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 h-8 text-xs shrink-0 flex items-center"
-          >
-            <IconPlus className="w-3.5 h-3.5 mr-1" />Сохранить
-          </button>
+          <input
+            type="text"
+            value={saveNameRu}
+            onChange={(e) => setSaveNameRu(e.target.value)}
+            placeholder="Название (русское)"
+            className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm h-8 text-xs"
+            maxLength={30}
+            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          />
         </div>
+        <button
+          onClick={handleSave}
+          className="w-full px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-medium hover:bg-slate-700 h-8 text-xs flex items-center justify-center"
+        >
+          <IconPlus className="w-3.5 h-3.5 mr-1" />Сохранить в галерею
+        </button>
+
+        {/* Pack selector for uploading to catalog */}
+        {savedIcons.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500">Загрузить в пак (каталог)</label>
+            <select
+              value={selectedPackId}
+              onChange={(e) => setSelectedPackId(e.target.value)}
+              className="w-full px-2 py-1.5 rounded-md border border-slate-200 text-sm text-slate-600 bg-white h-8 text-xs"
+            >
+              <option value="">Выберите пак...</option>
+              {packs.map((p) => (
+                <option key={p.id} value={p.id}>{p.nameRu || p.nameEn || p.slug}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {savedIcons.length > 0 && !showClearConfirm && (
           <div className="flex justify-end">
@@ -1054,12 +1162,20 @@ function IconGallery() {
                     ) : (
                       <div className="w-full aspect-square flex items-center justify-center" suppressHydrationWarning dangerouslySetInnerHTML={{ __html: isClient ? renderIconSVG(icon.config) : '' }} />
                     )}
-                    <p className="text-xs text-center text-slate-500 mt-1 truncate">{icon.name}</p>
+                    <p className="text-xs text-center text-slate-500 mt-1 truncate">{icon.nameRu || icon.name}</p>
                     <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="h-5 w-5 p-0 flex items-center justify-center rounded hover:bg-green-100 text-green-700 transition-colors"
+                        onClick={() => handleUploadToCatalog(icon)}
+                        disabled={uploadingId === icon.id}
+                        title="В каталог"
+                      >
+                        <IconPackage className="w-3 h-3" />
+                      </button>
                       <button
                         className="h-5 w-5 p-0 flex items-center justify-center rounded hover:bg-slate-200 transition-colors"
                         onClick={() => handleEdit(icon.id)}
-                        title="Загрузить"
+                        title="Загрузить конфиг"
                       >
                         <IconPencil className="w-3 h-3" />
                       </button>
@@ -1093,7 +1209,8 @@ function IconGallery() {
 export function IconGenerator() {
   const { config, resetConfig } = useIconStore()
   const isClient = useIsClient()
-  const svgCode = isClient ? renderIconSVG(config, true, 512) : ''
+  const iconName = config.iconNameRu || ''
+  const svgCode = isClient ? renderIconSVG(config, true, 512, iconName || undefined) : ''
 
   return (
     <div className="space-y-4">
@@ -1134,7 +1251,7 @@ export function IconGenerator() {
                 <h3 className="text-sm font-semibold text-slate-900">SVG Код</h3>
                 <button
                   className="h-7 text-xs text-slate-700 hover:bg-slate-50 px-2 py-1 rounded-md transition-colors flex items-center"
-                  onClick={() => navigator.clipboard.writeText(renderIconSVG(config, true, 512))}
+                  onClick={() => navigator.clipboard.writeText(renderIconSVG(config, true, 512, iconName || undefined))}
                 >
                   <IconCopy className="w-3 h-3 mr-1" />Копировать
                 </button>

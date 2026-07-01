@@ -49,12 +49,15 @@ function getShapePath(shape: IconShape): string {
   }
 }
 
-export function renderIconSVG(config: IconConfig, forExport = false, exportSize = 512): string {
+export function renderIconSVG(config: IconConfig, forExport = false, exportSize = 512, title?: string): string {
   const id = uid()
 
   const sizeAttrs = forExport
     ? `width="${exportSize}" height="${exportSize}"`
     : `width="100%" height="100%"`
+
+  // Title element (Russian name for accessibility and catalog)
+  const titleElement = title ? `<title>${escapeXml(title)}</title>` : ''
 
   // Background fill: gradient or solid or transparent
   let fillAttr = `fill="${toSixDigitHex(config.backgroundColor)}"`
@@ -112,6 +115,11 @@ export function renderIconSVG(config: IconConfig, forExport = false, exportSize 
       .replace(/(="#[0-9a-fA-F]{6})([0-9a-fA-F]{2})(")/g, '$1$3')  // Strip 8-digit hex alpha in attribute values
   }
 
+  // When background is transparent, skip the wrapper shape entirely — only render content
+  if (config.backgroundTransparent && !config.strokeEnabled && !config.shadowEnabled) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" ${sizeAttrs}>${titleElement}${textElement}${aiContent}</svg>`
+  }
+
   // Combined defs
   const defs = `<defs>${clipDef}${gradientDef}${filterDef}</defs>`
 
@@ -121,7 +129,7 @@ export function renderIconSVG(config: IconConfig, forExport = false, exportSize 
   // Content group clipped by shape
   const contentGroup = `<g clip-path="url(#${clipId})">${textElement}${aiContent}</g>`
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" ${sizeAttrs}>${defs}${bgShape}${contentGroup}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" ${sizeAttrs}>${titleElement}${defs}${bgShape}${contentGroup}</svg>`
 }
 
 export function renderAiIconSVG(config: IconConfig, forExport = false, exportSize = 512): string {

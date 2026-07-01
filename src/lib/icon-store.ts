@@ -50,11 +50,13 @@ export interface IconConfig {
   aiSvgContent: string
   aiImageContent: string  // base64 PNG from AI image generation
   useAiImage: boolean      // if true, render aiImageContent instead of aiSvgContent
+  iconNameRu: string       // Russian name for the icon (used as <title> and for catalog)
 }
 
 export interface SavedIcon {
   id: string
   name: string
+  nameRu: string  // Russian name for catalog
   config: IconConfig
   createdAt: number
 }
@@ -91,6 +93,7 @@ export const defaultIconConfig: IconConfig = {
   aiSvgContent: '',
   aiImageContent: '',
   useAiImage: false,
+  iconNameRu: '',
 }
 
 interface IconStore {
@@ -101,7 +104,7 @@ interface IconStore {
 
   setConfig: (config: Partial<IconConfig>) => void
   resetConfig: () => void
-  saveIcon: (name: string) => void
+  saveIcon: (name: string, nameRu?: string) => void
   deleteIcon: (id: string) => void
   clearAllIcons: () => void
   loadIcon: (id: string) => void
@@ -125,12 +128,13 @@ export const useIconStore = create<IconStore>()(
 
       resetConfig: () => set({ config: { ...defaultIconConfig } }),
 
-      saveIcon: (name) =>
+      saveIcon: (name: string, nameRu?: string) =>
         set((state) => ({
           savedIcons: [
             {
               id: crypto.randomUUID(),
               name,
+              nameRu: nameRu || name,
               config: { ...state.config },
               createdAt: Date.now(),
             },
