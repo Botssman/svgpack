@@ -65,8 +65,7 @@ server.log
 /worklog.md
 /tool-results/
 /scripts/
-# Icon data files (too large for git, generated from sources)
-public/icons-all.zip
+# Icon data files (too large for git, generated from sources) — except the ZIP for download
 public/icon-browser.html
 public/icons/
 download/
