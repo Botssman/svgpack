@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import ZAI from 'z-ai-web-dev-sdk'
+import { searchAllPrimitives, getAllPrimitives } from '@/lib/primitive-library'
 
 // ─── Few-shot examples by style + fillMode ──────────────────────────
 const EXAMPLES_OUTLINED_MINIMAL = `
@@ -289,6 +290,24 @@ export async function POST(req: NextRequest) {
       : style === 'gradient' ? 'clean modern design with layered shapes creating depth illusion'
       : 'minimalist, clean simple lines, thin strokes'
 
+    // ─── Search icon library for similar icons as few-shot examples ───
+    const similarIcons = await searchAllPrimitives(prompt.trim(), fillMode)
+    let libraryExamples = ''
+    if (similarIcons.length > 0) {
+      const topIcons = similarIcons.slice(0, 4)
+      libraryExamples = '\nREFERENCE — similar icons from the icon library (use as inspiration for shape/proportions, but create an ORIGINAL icon):\n'
+      for (const ref of topIcons) {
+        // Convert from 24x24 viewBox to 512x512
+        const scaledSvg = ref.svg
+          .replace(/transform="scale\([^)]+\)"/g, '') // Remove scale transform
+          .replace(/<g[^>]*>/g, '') // Remove g wrappers
+          .replace(/<\/g>/g, '')
+        const isRefFilled = ref.fillMode === 'filled'
+        const refFillAttr = isRefFilled ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"'
+        libraryExamples += `EXAMPLE — ${isRefFilled ? 'filled' : 'outlined'} "${ref.name}" icon (reference):\n${scaledSvg.replace(/fill="none"/g, isRefFilled ? 'fill="currentColor"' : 'fill="none"').replace(/stroke="currentColor"/g, refFillAttr.split(' ').find(a => a.startsWith('stroke=')) || 'stroke="currentColor"')}\n\n`
+      }
+    }
+
     const examples = getExamples(style, fillMode)
     const fillRule = isFilled
       ? 'FILLED: Use fill="currentColor" stroke="none". Solid shapes, no outlines.'
@@ -298,7 +317,7 @@ export async function POST(req: NextRequest) {
 ${fillRule}
 Use currentColor for ALL colors. No background. No text. Centered in 512x512 viewport.
 
-${examples}
+${libraryExamples}${examples}
 
 Now create the icon. Output ONLY the SVG elements, nothing else:`
 
