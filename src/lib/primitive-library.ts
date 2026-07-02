@@ -615,5 +615,51 @@ export function getCategories(): string[] {
  * Get primitives by category
  */
 export function getPrimitivesByCategory(category: string): SvgPrimitive[] {
-  return PRIMITIVES.filter(p => p.category === category)
+  return ALL_PRIMITIVES.filter(p => p.category === category)
+}
+
+// ─── Import open-source primitives ──────────────────────────────────
+// These are auto-generated from Lucide (ISC) and Tabler (MIT) icon libraries.
+// Both licenses allow free commercial use.
+
+let _importedPrimitives: SvgPrimitive[] = []
+
+/** Lazy-load imported primitives to avoid bundling 360KB unless needed */
+async function loadImportedPrimitives(): Promise<SvgPrimitive[]> {
+  if (_importedPrimitives.length > 0) return _importedPrimitives
+  try {
+    const mod = await import('./primitive-library-imported')
+    _importedPrimitives = mod.IMPORTED_PRIMITIVES || []
+  } catch {
+    // File might not be generated yet
+    _importedPrimitives = []
+  }
+  return _importedPrimitives
+}
+
+/** All primitives: built-in + imported (imported loaded lazily) */
+export const ALL_PRIMITIVES: SvgPrimitive[] = [...PRIMITIVES]
+
+/** Get all primitives including imported ones (async) */
+export async function getAllPrimitives(): Promise<SvgPrimitive[]> {
+  const imported = await loadImportedPrimitives()
+  return [...PRIMITIVES, ...imported]
+}
+
+/** Search all primitives including imported ones (async) */
+export async function searchAllPrimitives(query: string, fillMode?: string, style?: string): Promise<SvgPrimitive[]> {
+  const all = await getAllPrimitives()
+  const q = query.toLowerCase().trim()
+  if (!q) return all
+
+  return all.filter(p => {
+    if (fillMode && p.fillMode !== fillMode) return false
+    if (style && p.style !== style && p.style !== 'minimal') return false
+    return (
+      p.keywords.some(k => k.includes(q) || q.includes(k)) ||
+      p.name.toLowerCase().includes(q) ||
+      p.nameRu.toLowerCase().includes(q) ||
+      p.category.includes(q)
+    )
+  })
 }
