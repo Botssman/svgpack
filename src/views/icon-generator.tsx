@@ -441,7 +441,7 @@ function AIPromptSection() {
       setLoading(false)
       abortRef.current = null
     }
-  }, [prompt, style, fillMode, genMode, setConfig, toast])
+  }, [prompt, style, fillMode, setConfig, toast])
 
   const handleGenerateBatch = useCallback(async () => {
     if (!prompt.trim()) {
@@ -531,7 +531,7 @@ function AIPromptSection() {
       setBatchMode(false)
       abortRef.current = null
     }
-  }, [prompt, style, fillMode, genMode, setConfig, saveIcon, toast])
+  }, [prompt, style, fillMode, setConfig, saveIcon, toast])
 
   // Pack generation
   const handleGeneratePack = useCallback(async () => {
@@ -599,7 +599,7 @@ function AIPromptSection() {
       setBatchMode(false)
       abortRef.current = null
     }
-  }, [prompt, style, fillMode, genMode, setConfig, saveIcon, toast])
+  }, [prompt, style, fillMode, setConfig, saveIcon, toast])
 
   const isGenerating = loading || batchMode
 
