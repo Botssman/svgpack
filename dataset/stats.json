@@ -1,37 +1,43 @@
 {
-  "total": 7942,
+  "total_examples": 15884,
+  "unique_icons": 7942,
   "skipped": 0,
+  "variants_per_icon": 2,
   "libraries": {
-    "lucide": 1601,
     "tabler": 4600,
-    "heroicons": 540,
-    "iconoir": 1201
+    "lucide": 1601,
+    "iconoir": 1201,
+    "heroicons": 540
   },
   "fill_modes": {
-    "outlined": 6490,
-    "filled": 1452
+    "outlined": 12980,
+    "filled": 2904
   },
   "categories": {
-    "arrows": 758,
-    "commerce": 561,
-    "communication": 328,
-    "devices": 464,
-    "education": 53,
-    "food": 45,
-    "health": 19,
-    "media": 342,
-    "nature": 32,
-    "navigation": 310,
-    "social": 115,
-    "time": 71,
-    "transport": 100,
-    "ui": 4540,
-    "weather": 204
+    "arrows": 1516,
+    "ui": 9080,
+    "media": 684,
+    "time": 142,
+    "social": 230,
+    "navigation": 620,
+    "communication": 656,
+    "weather": 408,
+    "commerce": 1122,
+    "education": 106,
+    "devices": 928,
+    "food": 90,
+    "transport": 200,
+    "nature": 64,
+    "health": 38
   },
   "svg_length": {
     "min": 107,
     "max": 5261,
     "avg": 570,
     "median": 508
-  }
+  },
+  "train_examples": 14294,
+  "val_examples": 1590,
+  "train_icons": 7147,
+  "val_icons": 795
 }
