@@ -1,0 +1,37 @@
+{
+  "total": 7942,
+  "skipped": 0,
+  "libraries": {
+    "lucide": 1601,
+    "tabler": 4600,
+    "heroicons": 540,
+    "iconoir": 1201
+  },
+  "fill_modes": {
+    "outlined": 6490,
+    "filled": 1452
+  },
+  "categories": {
+    "arrows": 758,
+    "commerce": 561,
+    "communication": 328,
+    "devices": 464,
+    "education": 53,
+    "food": 45,
+    "health": 19,
+    "media": 342,
+    "nature": 32,
+    "navigation": 310,
+    "social": 115,
+    "time": 71,
+    "transport": 100,
+    "ui": 4540,
+    "weather": 204
+  },
+  "svg_length": {
+    "min": 107,
+    "max": 5261,
+    "avg": 570,
+    "median": 508
+  }
+}
