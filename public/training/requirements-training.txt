@@ -1,0 +1,28 @@
+# SVG Icon Generator — Training Requirements
+# Install on GPU machine (RTX 4070 Ti, CUDA 12.x)
+#
+# pip install -r requirements-training.txt
+
+# Core ML
+torch>=2.2.0
+torchvision>=0.17.0
+
+# Transformers & PEFT
+transformers>=4.40.0
+peft>=0.10.0
+accelerate>=0.30.0
+bitsandbytes>=0.43.0
+
+# Dataset
+datasets>=2.18.0
+
+# Flash Attention (optional, significant speedup)
+# Install separately: pip install flash-attn --no-build-isolation
+# flash-attn>=2.5.0
+
+# Logging (optional)
+# wandb>=0.16.0
+
+# Inference server
+# fastapi>=0.110.0
+# uvicorn>=0.29.0
