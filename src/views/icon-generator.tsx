@@ -478,7 +478,7 @@ function AIPromptSection() {
         if (ac.signal.aborted) break
         setBatchCurrent(i + 1)
         setBatchLog((prev) => [...prev, `[${i + 1}/${icons.length}] ${icons[i].name}...`])
-        if (i > 0) await delay(3000 + Math.random() * 3000)
+        if (i > 0) await delay(500 + Math.random() * 500)
         if (ac.signal.aborted) break
 
         let iconGenerated = false
@@ -498,16 +498,16 @@ function AIPromptSection() {
             if (ac.signal.aborted) break
             consecutiveErrors++
             if (retry < maxRetries - 1) {
-              const waitMs = (retry + 1) * 5000
+              const waitMs = (retry + 1) * 2000
               setBatchLog((prev) => [...prev, `  ... ${icons[i].name} - сбой, повтор через ${waitMs / 1000}с...`])
               await delay(waitMs)
             } else {
               setBatchLog((prev) => [...prev, `  x ${icons[i].name} - сбой после ${maxRetries} попыток`])
             }
           }
-          if (consecutiveErrors >= 3 && !ac.signal.aborted) {
-            setBatchLog((prev) => [...prev, '  || Пауза 20с (слишком много ошибок)...'])
-            await delay(20000)
+          if (consecutiveErrors >= 5 && !ac.signal.aborted) {
+            setBatchLog((prev) => [...prev, '  || Пауза 5с (слишком много ошибок)...'])
+            await delay(5000)
             consecutiveErrors = 0
           }
         }
@@ -567,7 +567,7 @@ function AIPromptSection() {
         if (ac.signal.aborted) break
         setBatchCurrent(i + 1)
         setBatchLog((prev) => [...prev, `[${i + 1}/${icons.length}] ${icons[i].name || icons[i]}...`])
-        if (i > 0) await new Promise(r => setTimeout(r, 3000 + Math.random() * 3000))
+        if (i > 0) await new Promise(r => setTimeout(r, 500 + Math.random() * 500))
         if (ac.signal.aborted) break
         try {
           const iconPrompt = typeof icons[i] === 'string' ? icons[i] : icons[i].prompt || icons[i].name
@@ -989,7 +989,7 @@ function IconPackSection() {
       for (let i = 0; i < icons.length; i++) {
         if (ac.signal.aborted) break
         setProgress(p => ({ ...p, current: i + 1, log: `[${i + 1}/${icons.length}] ${icons[i]?.name || icons[i]}...` }))
-        if (i > 0) await delay(3000 + Math.random() * 3000)
+        if (i > 0) await delay(500 + Math.random() * 500)
         if (ac.signal.aborted) break
 
         try {
