@@ -55,7 +55,19 @@ from peft import (
 
 # ─── Configuration ────────────────────────────────────────────────────
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Auto-detect project root: look for dataset/ in parent or current dir
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if (_SCRIPT_DIR / 'dataset').exists():
+    PROJECT_ROOT = _SCRIPT_DIR
+elif (_SCRIPT_DIR.parent / 'dataset').exists():
+    PROJECT_ROOT = _SCRIPT_DIR.parent
+else:
+    PROJECT_ROOT = _SCRIPT_DIR
+
+print(f"Script dir: {_SCRIPT_DIR}")
+print(f"Project root: {PROJECT_ROOT}")
+print(f"Dataset dir: {PROJECT_ROOT / 'dataset'}")
+print(f"Dataset exists: {(PROJECT_ROOT / 'dataset').exists()}")
 DATASET_DIR = PROJECT_ROOT / 'dataset'
 CHECKPOINT_DIR = PROJECT_ROOT / 'checkpoints'
 OUTPUT_DIR = PROJECT_ROOT / 'svg-model'
@@ -88,6 +100,12 @@ DEFAULT_WARMUP_RATIO = 0.1
 
 def load_dataset(dataset_dir: Path, max_seq_len: int, tokenizer):
     """Load and tokenize the icon dataset."""
+
+    dataset_dir = Path(dataset_dir)
+    if not dataset_dir.exists():
+        print(f"ERROR: dataset dir not found: {dataset_dir}")
+        print(f"Looking for: icons_train.jsonl")
+        sys.exit(1)
 
     train_path = dataset_dir / 'icons_train.jsonl'
     val_path = dataset_dir / 'icons_val.jsonl'
