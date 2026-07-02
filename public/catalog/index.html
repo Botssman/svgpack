@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Icon Library — {total} иконок</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+.hdr{background:linear-gradient(135deg,#1e293b,#0f172a);padding:20px 28px;border-bottom:1px solid #334155;position:sticky;top:0;z-index:100}
+.hdr h1{font-size:22px;font-weight:700;margin-bottom:8px}
+.hdr .st{display:flex;gap:8px;flex-wrap:wrap}
+.si{background:#0f172a;padding:4px 10px;border-radius:6px;font-size:12px;border:1px solid #334155}
+.si b{color:#60a5fa}
+.ctrl{padding:10px 28px;background:#1e293b;border-bottom:1px solid #334155;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctrl input{background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:7px 12px;border-radius:8px;font-size:13px;width:220px}
+.ctrl input:focus{outline:1px solid #60a5fa;border-color:#60a5fa}
+.ctrl select{background:#0f172a;border:1px solid #475569;color:#e2e8f0;padding:7px 8px;border-radius:8px;font-size:12px}
+.ctrl .cnt{margin-left:auto;color:#94a3b8;font-size:12px}
+.cats{padding:12px 28px;background:#1e293b;border-bottom:1px solid #334155;display:flex;gap:6px;flex-wrap:wrap}
+.cbtn{padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;border:1px solid #475569;background:#0f172a;color:#e2e8f0;transition:all .15s}
+.cbtn:hover{border-color:#60a5fa}
+.cbtn.active{background:#3b82f6;border-color:#3b82f6}
+.grd{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:5px;padding:10px 28px}
+.ic{background:#1e293b;border:1px solid #334155;border-radius:6px;padding:8px 4px;text-align:center;cursor:pointer;transition:all .15s;position:relative}
+.ic:hover{border-color:#60a5fa;background:#1e3a5f;transform:translateY(-1px)}
+.ic svg{width:28px;height:28px;margin:0 auto 4px;display:block;stroke:#cbd5e1}
+.ic .nm{font-size:8px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic .ld{position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%}
+.ch{padding:12px 28px 2px;font-size:14px;font-weight:700;color:#60a5fa}
+.ch span{font-size:11px;font-weight:400;color:#64748b}
+.loading{text-align:center;padding:40px;color:#94a3b8;font-size:18px}
+.mo{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:200;justify-content:center;align-items:center}
+.mo.a{display:flex}
+.ml{background:#1e293b;border:1px solid #475569;border-radius:14px;padding:24px;max-width:440px;width:92%;text-align:center;position:relative}
+.ml svg{width:80px;height:80px;margin:8px auto;display:block;stroke:#60a5fa}
+.ml h2{color:#e2e8f0;font-size:16px;margin-bottom:2px}
+.ml .mt{color:#64748b;font-size:11px;margin-bottom:10px}
+.ml pre{background:#0f172a;color:#94a3b8;padding:10px;border-radius:6px;text-align:left;font-size:10px;overflow-x:auto;max-height:160px;white-space:pre-wrap;word-break:break-all}
+.ml .cl{position:absolute;top:10px;right:14px;background:none;border:none;color:#94a3b8;font-size:20px;cursor:pointer}
+.ml .db{background:#3b82f6;color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;margin-top:8px;font-size:12px}
+.lm{text-align:center;padding:16px}
+.lm button{background:#3b82f6;color:#fff;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:13px}
+.wel{text-align:center;padding:60px 28px;color:#94a3b8}
+.wel .big{font-size:48px;margin-bottom:16px}
+.wel .t{font-size:18px;color:#e2e8f0;margin-bottom:8px}
+.wel .s{font-size:14px}
+</style></head><body>
+<div class="hdr">
+<h1>🎨 Icon Library — {total} иконок</h1>
+<div class="st">
+<div class="si">Всего: <b>{total}</b></div>
+<div class="si"><span style="color:#f97316">●</span> Lucide: <b>1456</b></div>
+<div class="si"><span style="color:#3b82f6">●</span> Tabler: <b>5200</b></div>
+<div class="si"><span style="color:#8b5cf6">●</span> Heroicons: <b>284</b></div>
+<div class="si"><span style="color:#10b981">●</span> Iconoir: <b>780</b></div>
+<div class="si"><span style="color:#ec4899">●</span> Phosphor: <b>222</b></div>
+</div>
+</div>
+
+<div class="cats" id="cats">
+<button class="cbtn active" onclick="setCat('')">Все</button>
+<button class="cbtn" data-cat="ui" onclick="loadCat('ui')">Ui (4540)</button>
+<button class="cbtn" data-cat="arrows" onclick="loadCat('arrows')">Arrows (758)</button>
+<button class="cbtn" data-cat="commerce" onclick="loadCat('commerce')">Commerce (561)</button>
+<button class="cbtn" data-cat="devices" onclick="loadCat('devices')">Devices (464)</button>
+<button class="cbtn" data-cat="media" onclick="loadCat('media')">Media (342)</button>
+<button class="cbtn" data-cat="communication" onclick="loadCat('communication')">Communication (328)</button>
+<button class="cbtn" data-cat="navigation" onclick="loadCat('navigation')">Navigation (310)</button>
+<button class="cbtn" data-cat="weather" onclick="loadCat('weather')">Weather (204)</button>
+<button class="cbtn" data-cat="social" onclick="loadCat('social')">Social (115)</button>
+<button class="cbtn" data-cat="transport" onclick="loadCat('transport')">Transport (100)</button>
+<button class="cbtn" data-cat="time" onclick="loadCat('time')">Time (71)</button>
+<button class="cbtn" data-cat="education" onclick="loadCat('education')">Education (53)</button>
+<button class="cbtn" data-cat="food" onclick="loadCat('food')">Food (45)</button>
+<button class="cbtn" data-cat="nature" onclick="loadCat('nature')">Nature (32)</button>
+<button class="cbtn" data-cat="health" onclick="loadCat('health')">Health (19)</button>
+</div>
+
+<div class="ctrl" id="ctrls" style="display:none">
+<input type="text" id="search" placeholder="Поиск..." oninput="filterIcons()">
+<select id="libFilter" onchange="filterIcons()">
+<option value="">Все библиотеки</option>
+<option value="lucide">Lucide</option>
+<option value="tabler">Tabler</option>
+<option value="heroicons">Heroicons</option>
+<option value="iconoir">Iconoir</option>
+<option value="phosphor">Phosphor</option>
+</select>
+<select id="fillFilter" onchange="filterIcons()">
+<option value="">Все стили</option>
+<option value="outlined">Outlined</option>
+<option value="filled">Filled</option>
+</select>
+<span class="cnt" id="count"></span>
+</div>
+
+<div id="content">
+<div class="wel">
+<div class="big">📂</div>
+<div class="t">Выберите категорию</div>
+<div class="s">Нажмите на кнопку категории выше, чтобы загрузить иконки</div>
+</div>
+</div>
+
+<div class="mo" id="mB" onclick="closeModal(event)">
+<div class="ml" onclick="event.stopPropagation()">
+<button class="cl" onclick="closeM()">&times;</button>
+<div id="mI"></div>
+<h2 id="mN"></h2>
+<div class="mt" id="mM"></div>
+<pre id="mS"></pre>
+<button class="db" id="mD" onclick="dlSvg()">Скачать SVG</button>
+</div>
+</div>
+
+<script>
+const LC={lucide:'#f97316',tabler:'#3b82f6',heroicons:'#8b5cf6',iconoir:'#10b981',phosphor:'#ec4899'};
+function gl(id){for(const l in LC)if(id.startsWith(l))return l;return'other'}
+
+let allIcons=[],activeCat='',shown=200,curIc=null;
+
+function setCat(c){
+  document.querySelectorAll('.cbtn').forEach(b=>b.classList.remove('active'));
+  if(!c){document.querySelector('.cbtn').classList.add('active');
+    document.getElementById('ctrls').style.display='none';
+    document.getElementById('content').innerHTML='<div class="wel"><div class="big">📂</div><div class="t">Выберите категорию</div><div class="s">Нажмите на кнопку выше</div></div>';
+    activeCat='';allIcons=[];return}
+}
+
+async function loadCat(cat){
+  activeCat=cat;
+  document.querySelectorAll('.cbtn').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`.cbtn[data-cat="${{cat}}"]`).classList.add('active');
+  document.getElementById('ctrls').style.display='flex';
+  document.getElementById('content').innerHTML='<div class="loading">⏳ Загрузка...</div>';
+  document.getElementById('search').value='';
+  document.getElementById('libFilter').value='';
+  document.getElementById('fillFilter').value='';
+  shown=200;
+  try{
+    const r=await fetch('/icons/'+cat+'.json');
+    allIcons=await r.json();
+    allIcons.forEach(i=>i.lib=gl(i.id));
+    filterIcons();
+  }}catch(e){{console.error(e);document.getElementById('content').innerHTML='<div class="loading">❌ Ошибка загрузки</div>'}}
+}}
+
+function filterIcons(){
+  const s=document.getElementById('search').value.toLowerCase(),
+        lb=document.getElementById('libFilter').value,
+        fl=document.getElementById('fillFilter').value;
+  const ft=allIcons.filter(i=>{{
+    if(lb&&i.lib!==lb)return false;
+    if(fl&&i.fillMode!==fl)return false;
+    if(s)return i.name.toLowerCase().includes(s)||i.nameRu.toLowerCase().includes(s)||i.id.toLowerCase().includes(s)||i.keywords.some(k=>k.toLowerCase().includes(s));
+    return true}});
+  document.getElementById('count').textContent=ft.length+' иконок';
+  const vis=ft.slice(0,shown);
+  let h='<div class="ch">'+activeCat.charAt(0).toUpperCase()+activeCat.slice(1)+' <span>('+ft.length+')</span></div>';
+  h+='<div class="grd">';
+  for(const ic of vis){{
+    const svgD=ic.svg.replace('currentColor','#cbd5e1').replace(/xmlns="[^"]*"/,'');
+    h+='<div class="ic" onclick="showIc(this)" data-idx="'+allIcons.indexOf(ic)+'"><div class="ld" style="background:'+(LC[ic.lib]||'#64748b')+'"></div>'+svgD+'<div class="nm" title="'+ic.name+'">'+ic.name+'</div></div>';
+  }}
+  h+='</div>';
+  if(shown<ft.length)h+='<div class="lm"><button onclick="shown+=200;filterIcons()">Показать ещё ('+(ft.length-shown)+')</button></div>';
+  document.getElementById('content').innerHTML=h;
+}}
+
+function showIc(el){
+  const idx=parseInt(el.dataset.idx);
+  curIc=allIcons[idx];
+  document.getElementById('mI').innerHTML=curIc.svg.replace('currentColor','#60a5fa').replace(/xmlns="[^"]*"/,'');
+  document.getElementById('mN').textContent=curIc.name;
+  document.getElementById('mM').textContent=curIc.id+' | '+curIc.category+' | '+curIc.lib+' | '+curIc.fillMode;
+  document.getElementById('mS').textContent=curIc.svg;
+  document.getElementById('mB').classList.add('a');
+}}
+
+function closeModal(e){{if(e.target===document.getElementById('mB'))closeM()}}
+function closeM(){{document.getElementById('mB').classList.remove('a');curIc=null}}
+
+function dlSvg(){{
+  if(!curIc)return;
+  const b=new Blob([curIc.svg],{{type:'image/svg+xml'}}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download=curIc.name+'.svg';a.click();URL.revokeObjectURL(u);
+}}
+
+document.addEventListener('keydown',e=>{{if(e.key==='Escape')closeM()}});
+</script>
+</body></html>
