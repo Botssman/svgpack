@@ -18,7 +18,7 @@ export interface SvgPrimitive {
   /** Russian name */
   nameRu: string
   /** Category for grouping */
-  category: 'weather' | 'social' | 'navigation' | 'ui' | 'media' | 'communication' | 'commerce' | 'devices' | 'time' | 'arrows'
+  category: 'weather' | 'social' | 'navigation' | 'ui' | 'media' | 'communication' | 'commerce' | 'devices' | 'time' | 'arrows' | 'food' | 'health' | 'transport' | 'education' | 'nature'
   /** Keywords for matching */
   keywords: string[]
   /** SVG content (inner elements only, no <svg> wrapper) */
