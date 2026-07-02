@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import ZAI from 'z-ai-web-dev-sdk'
 
 // ─── Fallback icon lists by theme ────────────────────────────────────
 const FALLBACK_THEMES: Record<string, { name: string; prompt: string }[]> = {
@@ -79,12 +80,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ icons, provider: 'fallback' })
     }
 
-    // Mode 2: Generate icon list from theme
+    // Mode 2: Generate icon list from theme using LLM
     if (!theme || typeof theme !== 'string') {
       return NextResponse.json({ error: 'Theme or rawText is required' }, { status: 400 })
     }
 
-    const iconCount = Math.min(Math.max(count || 6, 1), 100)
+    const iconCount = Math.min(Math.max(count || 6, 1), 50)
+
+    // Try LLM first
+    try {
+      const zai = await ZAI.create()
+      const completion = await zai.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: `You are an icon set designer. Given a theme, generate a list of icon names and descriptions. Return ONLY a JSON array, no other text. Each item must have "name" (kebab-case English slug) and "prompt" (English description of what the icon looks like). Example: [{"name":"sun","prompt":"Bright sun with rays extending outward"}]`,
+          },
+          {
+            role: 'user',
+            content: `Generate exactly ${iconCount} icon names for the theme "${theme.trim()}". Each icon should be distinct and recognizable. Return only the JSON array.`,
+          },
+        ],
+        thinking: { type: 'disabled' },
+      })
+
+      let content = completion.choices?.[0]?.message?.content?.trim() || ''
+
+      // Strip markdown code blocks
+      content = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+
+      const icons = JSON.parse(content)
+      if (Array.isArray(icons) && icons.length > 0) {
+        // Validate and clean
+        const cleaned = icons
+          .filter((ic: Record<string, unknown>) => ic.name && ic.prompt)
+          .map((ic: { name: string; prompt: string }) => ({
+            name: String(ic.name).toLowerCase().replace(/\s+/g, '-').slice(0, 50),
+            prompt: String(ic.prompt).slice(0, 500),
+          }))
+          .slice(0, iconCount)
+
+        if (cleaned.length > 0) {
+          return NextResponse.json({ icons: cleaned, provider: 'llm' })
+        }
+      }
+    } catch (llmError) {
+      console.warn('[generate-pack-list] LLM failed, using fallback:', llmError)
+    }
+
+    // Fallback to hardcoded lists
     const icons = getFallbackList(theme, iconCount)
     return NextResponse.json({ icons, provider: 'fallback' })
   } catch (error) {

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useRef, useSyncExternalStore } from 'react'
-import { useIconStore, defaultIconConfig, IconShape, IconStyle, FillMode, GenMode } from '@/lib/icon-store'
+import { useIconStore, defaultIconConfig, IconShape, IconStyle, FillMode } from '@/lib/icon-store'
 import { renderIconSVG, svgToPng } from '@/lib/ai-svg-renderer'
 import { useToast } from '@/hooks/use-toast'
 import JSZip from 'jszip'
@@ -128,58 +128,23 @@ function useIsClient() {
   )
 }
 
-// ─── Client-side Pollinations.ai ──────────────────────────────────
-function buildPollinationsUrl(prompt: string, style: string, fillMode: string, seed?: number): string {
-  const isFilled = fillMode === 'filled'
-  const styleDesc = style === '3d' ? '3D isometric' : style === 'flat' ? 'flat design' : style === 'gradient' ? 'gradient' : 'minimalist'
-  const fillDesc = isFilled ? 'solid filled' : 'outlined stroke'
-  const imagePrompt = `A single professional UI icon of "${prompt}", ${styleDesc}, ${fillDesc} style, centered, clean, transparent background, high quality, no text, no watermark`
-  const encoded = encodeURIComponent(imagePrompt)
-  const s = seed ?? Math.floor(Math.random() * 999999)
-  return `https://image.pollinations.ai/prompt/${encoded}?width=512&height=512&nologo=true&seed=${s}`
-}
-
-async function fetchPollinationsImage(prompt: string, style: string, fillMode: string, signal?: AbortSignal): Promise<string> {
-  const url = buildPollinationsUrl(prompt, style, fillMode)
-  console.log('[Pollinations] Fetching:', url.substring(0, 120) + '...')
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 60000)
-
-  if (signal) {
-    signal.addEventListener('abort', () => { clearTimeout(timeoutId); controller.abort() }, { once: true })
+// ─── Client-side SVG generation via LLM API ────────────────────────
+async function fetchSvgFromLLM(prompt: string, style: string, fillMode: string, signal?: AbortSignal): Promise<string> {
+  const res = await fetch('/api/generate-svg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, style, fillMode }),
+    signal,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `SVG generation failed (${res.status})`)
   }
-
-  try {
-    const res = await fetch(url, {
-      mode: 'cors',
-      signal: controller.signal,
-      cache: 'no-store',
-    })
-    clearTimeout(timeoutId)
-
-    if (!res.ok) throw new Error(`Pollinations returned ${res.status}`)
-
-    console.log('[Pollinations] Response OK, type:', res.headers.get('content-type'))
-
-    const blob = await res.blob()
-    console.log('[Pollinations] Blob:', blob.type, blob.size, 'bytes')
-
-    if (blob.size < 1000) throw new Error('Image too small, possibly an error response')
-
-    return new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const result = reader.result as string
-        console.log('[Pollinations] Data URL created, length:', result.length)
-        resolve(result)
-      }
-      reader.onerror = () => reject(new Error('Failed to read image'))
-      reader.readAsDataURL(blob)
-    })
-  } finally {
-    clearTimeout(timeoutId)
+  const data = await res.json()
+  if (!data.svg || data.svg.length < 10) {
+    throw new Error('LLM вернул пустой SVG')
   }
+  return data.svg
 }
 
 // ─── Color sanitization ───────────────────────────────────────────
@@ -438,7 +403,6 @@ function AIPromptSection() {
   const [prompt, setPrompt] = useState('')
   const [style, setStyle] = useState<IconStyle>('minimal')
   const [fillMode, setFillMode] = useState<FillMode>('outlined')
-  const [genMode, setGenMode] = useState<GenMode>('aiImage')
   const [loading, setLoading] = useState(false)
   const [batchMode, setBatchMode] = useState(false)
   const [batchTotal, setBatchTotal] = useState(0)
@@ -461,9 +425,9 @@ function AIPromptSection() {
     setLoading(true)
     console.log('[Generate] Starting AI image generation for:', prompt.trim())
     try {
-      const dataUrl = await fetchPollinationsImage(prompt.trim(), style, fillMode, ac.signal)
-      console.log('[Generate] Got data URL, length:', dataUrl.length)
-      setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '' })
+      const svgContent = await fetchSvgFromLLM(prompt.trim(), style, fillMode, ac.signal)
+      console.log('[Generate] Got SVG content, length:', svgContent.length)
+      setConfig({ aiSvgContent: svgContent, useAiImage: false, aiImageContent: '' })
       toast({ title: 'Иконка сгенерирована!' })
     } catch (err) {
       console.error('[Generate] Error:', err)
@@ -523,8 +487,8 @@ function AIPromptSection() {
           if (ac.signal.aborted) break
           try {
             setBatchLog((prev) => [...prev, `  ... ${icons[i].name} - генерация...`])
-            const dataUrl = await fetchPollinationsImage(icons[i].prompt, style, fillMode, ac.signal)
-            setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '' })
+            const svgContent = await fetchSvgFromLLM(icons[i].prompt, style, fillMode, ac.signal)
+            setConfig({ aiSvgContent: svgContent, useAiImage: false, aiImageContent: '' })
             useIconStore.getState().saveIcon(icons[i].name, icons[i].nameRu || icons[i].name)
             successCount++
             consecutiveErrors = 0
@@ -607,8 +571,8 @@ function AIPromptSection() {
         if (ac.signal.aborted) break
         try {
           const iconPrompt = typeof icons[i] === 'string' ? icons[i] : icons[i].prompt || icons[i].name
-          const dataUrl = await fetchPollinationsImage(iconPrompt, style, fillMode, ac.signal)
-          setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '' })
+          const svgContent = await fetchSvgFromLLM(iconPrompt, style, fillMode, ac.signal)
+          setConfig({ aiSvgContent: svgContent, useAiImage: false, aiImageContent: '' })
           const name = typeof icons[i] === 'string' ? icons[i] : icons[i].name || `icon-${i + 1}`
           useIconStore.getState().saveIcon(name, name)
           successCount++
@@ -648,39 +612,11 @@ function AIPromptSection() {
         </h3>
       </div>
       <div className="p-4 pt-0 space-y-3">
-        {/* Generation mode selector */}
-        <div className="space-y-2">
-          <label className="block text-xs font-medium text-slate-500">Режим генерации</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              className={`px-4 py-2 rounded-lg text-sm font-medium h-8 text-xs flex items-center justify-center transition-colors ${
-                genMode === 'aiImage'
-                  ? 'bg-slate-900 text-white hover:bg-slate-700'
-                  : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-              onClick={() => setGenMode('aiImage')}
-              disabled={isGenerating}
-            >
-              <IconImage className="w-3.5 h-3.5 mr-1.5" />
-              AI Изображение
-            </button>
-            <button
-              className={`px-4 py-2 rounded-lg text-sm font-medium h-8 text-xs flex items-center justify-center transition-colors ${
-                genMode === 'aiSvg'
-                  ? 'bg-slate-900 text-white hover:bg-slate-700'
-                  : 'border border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-              onClick={() => setGenMode('aiSvg')}
-              disabled={isGenerating}
-            >
-              <IconWand className="w-3.5 h-3.5 mr-1.5" />
-              AI SVG
-            </button>
-          </div>
+        {/* Generation info */}
+        <div className="flex items-center gap-2 p-2 rounded-md bg-slate-50 border border-slate-100">
+          <IconWand className="w-4 h-4 text-slate-500 shrink-0" />
           <p className="text-xs text-slate-500">
-            {genMode === 'aiImage'
-              ? 'Генерация через Pollinations.ai — бесплатная, реальная картинка'
-              : 'Генерация SVG-кода через LLM (недоступно)'}
+            AI генерирует полноценный SVG — чистый вектор, без фона, цвет и стиль по вашим настройкам
           </p>
         </div>
 
@@ -1058,12 +994,10 @@ function IconPackSection() {
 
         try {
           const iconPrompt = typeof icons[i] === 'string' ? icons[i] : icons[i].prompt || icons[i].name
-          const iconStyle = 'minimal'
-          const fillMode = 'outlined'
-          const dataUrl = await fetchPollinationsImage(iconPrompt, iconStyle, fillMode, ac.signal)
+          const svgContent = await fetchSvgFromLLM(iconPrompt, 'minimal', 'outlined', ac.signal)
           const name = typeof icons[i] === 'string' ? icons[i] : icons[i].name || `icon-${i + 1}`
           const nameRu = typeof icons[i] === 'string' ? icons[i] : icons[i].nameRu || icons[i].name || `icon-${i + 1}`
-          useIconStore.getState().setConfig({ aiImageContent: dataUrl, useAiImage: true, aiSvgContent: '', backgroundTransparent: true })
+          useIconStore.getState().setConfig({ aiSvgContent: svgContent, useAiImage: false, aiImageContent: '', backgroundTransparent: true })
           useIconStore.getState().saveIcon(slugify(name), nameRu)
           successCount++
         } catch (err) {
@@ -1467,7 +1401,7 @@ export function IconGenerator() {
           AI Генератор Иконок
         </h2>
         <p className="text-xs text-slate-500 mt-1">
-          Генерация иконок через Pollinations.ai — бесплатно, без API ключа
+          Генерация иконок через AI — полноценный SVG, без фона, по вашим настройкам
         </p>
       </div>
 
