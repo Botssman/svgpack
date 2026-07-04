@@ -451,6 +451,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
   const [savingIcons, setSavingIcons] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
+  const [svgCodeInput, setSvgCodeInput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Convert English name to slug: transliterate, kebab-case, lowercase
@@ -593,6 +594,109 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
+  }
+
+  // Count SVG blocks in pasted code
+  const countSvgBlocks = (code: string) => {
+    const matches = code.match(/<svg[\s>]/gi)
+    return matches ? matches.length : 0
+  }
+
+  // Parse pasted SVG code with comments into icons
+  const parseSvgCode = () => {
+    if (!svgCodeInput.trim()) return
+
+    const icons: UploadedIcon[] = []
+    // Split by <svg> tags, keeping the comment before each
+    const svgRegex = /<!--\s*(.+?)\s*-->\s*<svg([^>]*)>([\s\S]*?)<\/svg>/gi
+    let match
+
+    while ((match = svgRegex.exec(svgCodeInput)) !== null) {
+      const commentText = match[1].trim()
+      const svgAttrs = match[2]
+      const innerSvg = match[3].trim()
+
+      // Parse comment: "Name / Название" or "1. Name / Название" or just "Name"
+      const cleanComment = commentText.replace(/^\d+[\.\)]\s*/, '') // remove "1. " prefix
+      let nameEn = ''
+      let nameRu = ''
+
+      if (cleanComment.includes('/')) {
+        const parts = cleanComment.split('/').map((s: string) => s.trim())
+        nameEn = parts[0] || ''
+        nameRu = parts[1] || ''
+      } else {
+        // Check if it's Cyrillic
+        if (/[а-яА-ЯёЁ]/.test(cleanComment)) {
+          nameRu = cleanComment
+          nameEn = ''
+        } else {
+          nameEn = cleanComment
+          nameRu = ''
+        }
+      }
+
+      // Also check <title> inside SVG for Russian name
+      const titleMatch = innerSvg.match(/<title>([^<]+)<\/title>/i)
+      if (titleMatch && !nameRu) {
+        nameRu = titleMatch[1].trim()
+      }
+
+      // Extract viewBox from svg attributes
+      const vbMatch = svgAttrs.match(/viewBox=["']([^"']+)["']/i)
+      const viewBox = vbMatch ? vbMatch[1] : '0 0 24 24'
+
+      // Remove <title> tags from inner SVG (they're stored as nameRu)
+      const cleanSvg = innerSvg.replace(/<title>[\s\S]*?<\/title>/gi, '').trim()
+
+      // Generate slug from English name
+      const slug = nameEnToSlug(nameEn || nameRu)
+
+      if (cleanSvg && slug) {
+        icons.push({
+          slug,
+          nameRu: nameRu || nameEn,
+          nameEn: nameEn || nameEnToSlug(nameRu),
+          keywords: [nameEn, nameRu].filter(Boolean).join(', ').toLowerCase(),
+          svg: cleanSvg,
+          viewBox,
+        })
+      }
+    }
+
+    // Fallback: if no comments found, try parsing bare <svg> blocks
+    if (icons.length === 0) {
+      const bareRegex = /<svg([^>]*)>([\s\S]*?)<\/svg>/gi
+      let idx = 0
+      while ((match = bareRegex.exec(svgCodeInput)) !== null) {
+        idx++
+        const svgAttrs = match[1]
+        const innerSvg = match[2].trim().replace(/<title>[\s\S]*?<\/title>/gi, '').trim()
+        const vbMatch = svgAttrs.match(/viewBox=["']([^"']+)["']/i)
+        const viewBox = vbMatch ? vbMatch[1] : '0 0 24 24'
+
+        // Try to get name from <title>
+        const titleMatch = match[2].match(/<title>([^<]+)<\/title>/i)
+        const titleName = titleMatch ? titleMatch[1].trim() : `icon-${idx}`
+
+        icons.push({
+          slug: `icon-${idx}`,
+          nameRu: /[а-яА-ЯёЁ]/.test(titleName) ? titleName : '',
+          nameEn: /[а-яА-ЯёЁ]/.test(titleName) ? '' : titleName,
+          keywords: titleName.toLowerCase(),
+          svg: innerSvg,
+          viewBox,
+        })
+      }
+    }
+
+    if (icons.length > 0) {
+      setUploadedIcons(prev => [...prev, ...icons])
+      setSvgCodeInput('')
+      toast({ title: `Распознано ${icons.length} иконок из кода` })
+    } else {
+      toast({ title: 'Не найдено SVG-блоков. Используйте формат: <!-- Name / Название --> <svg>...</svg>' })
+    }
   }
 
   const updateUploadedIcon = (index: number, field: string, value: string) => {
@@ -800,6 +904,35 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           </button>
         </div>
       )}
+
+      {/* Paste SVG Code section — always visible */}
+      <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 space-y-3">
+        <div className="text-sm font-medium text-slate-900">Вставить из SVG-кода</div>
+        <p className="text-xs text-emerald-700">
+          Вставьте блок SVG с комментариями. Формат: <code className="bg-emerald-100 px-1 rounded">{'<!-- Name / Название -->'}</code> перед каждым <code className="bg-emerald-100 px-1 rounded">{'<svg>'}</code>
+        </p>
+        <textarea
+          value={svgCodeInput}
+          onChange={(e) => setSvgCodeInput(e.target.value)}
+          placeholder={'<!-- Play / Играть -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">\n  <polygon points="9 7 9 17 16 12" />\n</svg>\n\n<!-- Settings / Настройки -->\n<svg ...>...</svg>'}
+          rows={8}
+          className="w-full px-3 py-2 rounded-md border border-emerald-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+        />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={parseSvgCode}
+            disabled={!svgCodeInput.trim()}
+            className="px-3 py-1.5 rounded-md bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Распознать иконки
+          </button>
+          {svgCodeInput.trim() && (
+            <span className="text-xs text-slate-500">
+              Найдено {countSvgBlocks(svgCodeInput)} SVG-блоков
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Upload ZIP section — always visible */}
       <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 space-y-3">
