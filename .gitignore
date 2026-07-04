@@ -65,6 +65,14 @@ server.log
 /worklog.md
 /tool-results/
 /scripts/
+# Python venv
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
 # Icon data files (too large for git, generated from sources) — except the ZIP for download
 public/icon-browser.html
 public/icons/
