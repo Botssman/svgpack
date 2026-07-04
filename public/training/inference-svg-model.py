@@ -42,19 +42,19 @@ from peft import PeftModel
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_PATH = PROJECT_ROOT / 'svg-model' / 'lora-adapter'
 
-SYSTEM_PROMPT = """You are a professional SVG icon designer. You create clean, production-ready SVG icons.
+SYSTEM_PROMPT = """You are an SVG icon generator. You receive a prompt and output exactly one SVG icon.
 
-CRITICAL RULES:
-1. Return ONLY SVG elements (path, circle, rect, polyline, line, ellipse, polygon). NO <svg> tag, NO xmlns, NO width/height/viewBox.
-2. The viewBox is 512x512. Center your icon. Use coordinates in the 56-456 range.
-3. Use "currentColor" for ALL stroke and fill colors — NEVER hex colors like #000 or #fff.
-4. NEVER add background rectangles, text, labels, <defs>, <clipPath>, <filter>, <mask>, <style>.
-5. For OUTLINED: fill="none" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"
-6. For FILLED: fill="currentColor" stroke="none" — solid shapes, no outlines.
-7. Keep it simple — 1-5 elements. Each path should be a single continuous shape.
-8. Output ONLY SVG fragment elements. No markdown, no code blocks, no explanation.
-9. Do NOT use <g> group tags. Use individual elements directly.
-10. Do NOT use transform attributes (no translate, rotate, scale)."""
+RULES:
+1. Output a complete <svg> tag with width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg".
+2. Use currentColor for ALL stroke and fill colors. NEVER use hex colors.
+3. For OUTLINED icons: fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round".
+4. For FILLED icons: fill="currentColor" stroke="none".
+5. For FLAT style: viewBox="0 0 256 256" or viewBox="0 0 64 64", stroke-width proportional.
+6. Keep it minimal: 1-5 elements per icon.
+7. Output ONLY the SVG code. No markdown, no explanation, no commentary.
+8. Do NOT use <g> tags, <defs>, <clipPath>, <filter>, <mask>, <style>, or <text>.
+9. Do NOT use transform attributes.
+10. Center the icon within the viewBox. Use coordinates in the 2-22 range for 24×24."""
 
 
 def load_model(model_path: str, base_model: str = None, use_4bit: bool = True):
@@ -118,8 +118,8 @@ def load_model(model_path: str, base_model: str = None, use_4bit: bool = True):
 
 
 def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
-                 style: str = 'minimal', max_new_tokens: int = 512,
-                 temperature: float = 0.7, top_p: float = 0.9,
+                 style: str = 'minimal', max_new_tokens: int = 300,
+                 temperature: float = 0.6, top_p: float = 0.9,
                  num_attempts: int = 3) -> dict:
     """Generate an SVG icon from a text prompt."""
 
@@ -153,7 +153,7 @@ def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
                 top_p=top_p,
                 do_sample=True,
                 pad_token_id=tokenizer.pad_token_id,
-                repetition_penalty=1.1,
+                repetition_penalty=1.3,
             )
 
         generated = outputs[0][inputs['input_ids'].shape[1]:]
@@ -187,33 +187,37 @@ def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
 def clean_svg(svg: str) -> str:
     """Clean up generated SVG content."""
     s = svg.strip()
-    # Strip markdown code blocks
+    # Strip markdown code blocks (svg, xml, html)
     s = re.sub(r'^```(?:svg|xml|html)?\s*\n?', '', s)
     s = re.sub(r'\n?```\s*$', '', s)
-    # Strip <svg> wrapper
-    s = re.sub(r'<svg[^>]*>', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'</svg>', '', s, flags=re.IGNORECASE)
-    # Strip <g> wrappers
-    s = re.sub(r'<g[^>]*>', '', s, flags=re.IGNORECASE)
-    s = re.sub(r'</g>', '', s, flags=re.IGNORECASE)
+    # Strip any commentary text before/after SVG
+    # Find the <svg...>...</svg> portion
+    svg_match = re.search(r'(<svg\b[\s\S]*?</svg>)', s, re.IGNORECASE)
+    if svg_match:
+        s = svg_match.group(1)
+    # Strip xml declaration
+    s = re.sub(r'<\?xml[^?]*\?>', '', s, flags=re.IGNORECASE)
     # Strip comments
     s = re.sub(r'<!--[\s\S]*?-->', '', s)
-    # Strip defs/style
+    # Strip <g> wrappers — move their attributes to children (simplified: just remove)
+    s = re.sub(r'<g[^>]*>', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'</g>', '', s, flags=re.IGNORECASE)
+    # Strip defs/style/clipPath/filter/mask
     s = re.sub(r'<defs[^>]*>[\s\S]*?</defs>', '', s, flags=re.IGNORECASE)
     s = re.sub(r'<style[^>]*>[\s\S]*?</style>', '', s, flags=re.IGNORECASE)
-    # Remove xml declaration
-    s = re.sub(r'<\?xml[^?]*\?>', '', s, flags=re.IGNORECASE)
-    # Fix hardcoded colors
-    s = re.sub(r'fill="#000000?"', 'fill="currentColor"', s)
-    s = re.sub(r'fill="#000"', 'fill="currentColor"', s)
-    s = re.sub(r'fill="#fff(?:fff)?"', 'fill="currentColor"', s)
-    s = re.sub(r'stroke="#000000?"', 'stroke="currentColor"', s)
-    s = re.sub(r'stroke="#000"', 'stroke="currentColor"', s)
+    s = re.sub(r'<clipPath[^>]*>[\s\S]*?</clipPath>', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'<filter[^>]*>[\s\S]*?</filter>', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'<mask[^>]*>[\s\S]*?</mask>', '', s, flags=re.IGNORECASE)
+    # Fix hardcoded colors to currentColor
+    s = re.sub(r'fill="#0{3,6}"', 'fill="currentColor"', s, flags=re.IGNORECASE)
+    s = re.sub(r'fill="#f{3,6}"', 'fill="currentColor"', s, flags=re.IGNORECASE)
+    s = re.sub(r'stroke="#0{3,6}"', 'stroke="currentColor"', s, flags=re.IGNORECASE)
+    s = re.sub(r'stroke="#f{3,6}"', 'stroke="currentColor"', s, flags=re.IGNORECASE)
     # Remove unnecessary attributes
-    s = re.sub(r'\s+xmlns[^=]*="[^"]*"', '', s)
+    s = re.sub(r'\s+xmlns:[a-z]+="[^"]*"', '', s)
     s = re.sub(r'\s+id="[^"]*"', '', s)
     s = re.sub(r'\s+class="[^"]*"', '', s)
-    # Trim
+    # Remove empty whitespace
     s = re.sub(r'\n\s+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s)
     return s.strip()
@@ -222,22 +226,30 @@ def clean_svg(svg: str) -> str:
 def validate_svg(svg: str, fill_mode: str, style: str) -> tuple[bool, str]:
     """Validate generated SVG content."""
     if not svg or len(svg) < 10:
-        return False, 'SVG too short'
+        return False, 'SVG слишком короткий'
 
+    # Must have SVG drawing elements
     if not re.search(r'<(path|circle|rect|polyline|polygon|line|ellipse)\b', svg):
-        return False, 'No SVG drawing elements found'
+        return False, 'Нет SVG элементов рисования'
 
+    # Must use currentColor
     if 'currentColor' not in svg:
-        return False, 'Missing currentColor'
+        return False, 'Нет currentColor'
 
-    for tag in ['<svg', '</svg>', '<text', '<image', '<script']:
+    # Must not contain text/script/image tags
+    for tag in ['<text', '<image', '<script']:
         if tag in svg.lower():
-            return False, f'Contains forbidden tag: {tag}'
+            return False, f'Содержит запрещённый тег: {tag}'
 
     # Check element count (not too complex)
     elements = re.findall(r'<(path|circle|rect|polyline|polygon|line|ellipse)\b', svg)
     if len(elements) > 20:
-        return False, f'Too many elements ({len(elements)})'
+        return False, f'Слишком много элементов ({len(elements)})'
+
+    # Check for viewBox — accept 24×24 or 256×256 or 64×64
+    viewBox_match = re.search(r'viewBox="([^"]+)"', svg)
+    if not viewBox_match:
+        return False, 'Нет viewBox'
 
     return True, 'OK'
 
@@ -394,8 +406,8 @@ def batch_mode(model, tokenizer, input_file: str, output_dir: str):
         svg_file = output_path / f'{safe_name}.svg'
         svg_content = result.get('svg', '')
         if svg_content:
-            full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">\n{svg_content}\n</svg>'
-            svg_file.write_text(full_svg, encoding='utf-8')
+            # svg_content already contains <svg> wrapper from clean_svg
+            svg_file.write_text(svg_content, encoding='utf-8')
 
     # Save results JSON
     results_file = output_path / 'results.json'
@@ -437,8 +449,9 @@ def main():
                         choices=['outlined', 'filled'])
     parser.add_argument('--style', type=str, default='minimal',
                         choices=['minimal', 'flat'])
-    parser.add_argument('--max-tokens', type=int, default=512)
-    parser.add_argument('--temperature', type=float, default=0.7)
+    parser.add_argument('--max-tokens', type=int, default=300)
+    parser.add_argument('--temperature', type=float, default=0.6)
+    parser.add_argument('--repetition-penalty', type=float, default=1.3)
     parser.add_argument('--top-p', type=float, default=0.9)
     parser.add_argument('--port', type=int, default=8000,
                         help='Port for REST API server')
@@ -473,8 +486,7 @@ def main():
             # Save to file
             output_file = PROJECT_ROOT / 'download' / 'generated_icon.svg'
             output_file.parent.mkdir(parents=True, exist_ok=True)
-            full_svg = f'<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">\n{result["svg"]}\n</svg>'
-            output_file.write_text(full_svg, encoding='utf-8')
+            output_file.write_text(result['svg'], encoding='utf-8')
             print(f"\n💾 Сохранено: {output_file}")
         else:
             print(f"❌ Ошибка: {result['error']}")
