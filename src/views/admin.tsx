@@ -452,6 +452,7 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
   const [dragOver, setDragOver] = useState(false)
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false)
   const [svgCodeInput, setSvgCodeInput] = useState('')
+  const [jsonMetaInput, setJsonMetaInput] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Convert English name to slug: transliterate, kebab-case, lowercase
@@ -699,6 +700,38 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
     }
   }
 
+  // Validate JSON metadata
+  const validateJsonMeta = (json: string): boolean => {
+    try {
+      const obj = JSON.parse(json)
+      return typeof obj === 'object' && obj !== null
+    } catch {
+      return false
+    }
+  }
+
+  // Apply JSON metadata to pack form
+  const applyJsonMetadata = () => {
+    if (!jsonMetaInput.trim()) return
+    try {
+      const meta = JSON.parse(jsonMetaInput)
+      const updates: Partial<typeof form> = {}
+      if (meta.pack_slug && !slugManuallyEdited) updates.slug = meta.pack_slug
+      if (meta.pack_name_en) updates.nameEn = meta.pack_name_en
+      if (meta.pack_name_ru) updates.nameRu = meta.pack_name_ru
+      if (meta.pack_description_en) updates.descEn = meta.pack_description_en
+      if (meta.pack_description_ru) updates.descRu = meta.pack_description_ru
+      if (Object.keys(updates).length > 0) {
+        setForm(prev => ({ ...prev, ...updates }))
+        toast({ title: `Метаданные применены (${Object.keys(updates).length} полей)` })
+      } else {
+        toast({ title: 'Нет распознаваемых полей в JSON' })
+      }
+    } catch {
+      toast({ title: 'Ошибка парсинга JSON' })
+    }
+  }
+
   const updateUploadedIcon = (index: number, field: string, value: string) => {
     setUploadedIcons(prev => prev.map((ic, i) => i === index ? { ...ic, [field]: value } : ic))
   }
@@ -908,16 +941,38 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
       {/* Paste SVG Code section — always visible */}
       <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 space-y-3">
         <div className="text-sm font-medium text-slate-900">Вставить из SVG-кода</div>
-        <p className="text-xs text-emerald-700">
-          Вставьте блок SVG с комментариями. Формат: <code className="bg-emerald-100 px-1 rounded">{'<!-- Name / Название -->'}</code> перед каждым <code className="bg-emerald-100 px-1 rounded">{'<svg>'}</code>
-        </p>
-        <textarea
-          value={svgCodeInput}
-          onChange={(e) => setSvgCodeInput(e.target.value)}
-          placeholder={'<!-- Play / Играть -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">\n  <polygon points="9 7 9 17 16 12" />\n</svg>\n\n<!-- Settings / Настройки -->\n<svg ...>...</svg>'}
-          rows={8}
-          className="w-full px-3 py-2 rounded-md border border-emerald-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
-        />
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-emerald-800">SVG-код иконок</label>
+            <textarea
+              value={svgCodeInput}
+              onChange={(e) => setSvgCodeInput(e.target.value)}
+              placeholder={'<!-- Play / Играть -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">\n  <polygon points="9 7 9 17 16 12" />\n</svg>\n\n<!-- Settings / Настройки -->\n<svg ...>...</svg>'}
+              rows={10}
+              className="w-full px-3 py-2 rounded-md border border-emerald-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            />
+            {svgCodeInput.trim() && (
+              <span className="text-xs text-slate-500">
+                Найдено {countSvgBlocks(svgCodeInput)} SVG-блоков
+              </span>
+            )}
+          </div>
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-emerald-800">JSON-метаданные пака <span className="text-slate-400">(необязательно)</span></label>
+            <textarea
+              value={jsonMetaInput}
+              onChange={(e) => setJsonMetaInput(e.target.value)}
+              placeholder={'{\n  "pack_slug": "my-icon-pack",\n  "pack_name_en": "My Icon Pack",\n  "pack_name_ru": "Мой пак иконок",\n  "pack_description_en": "Description...",\n  "pack_description_ru": "Описание..."\n}'}
+              rows={10}
+              className="w-full px-3 py-2 rounded-md border border-emerald-200 text-sm font-mono bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            />
+            {jsonMetaInput.trim() && (
+              <span className={`text-xs ${validateJsonMeta(jsonMetaInput) ? 'text-emerald-600' : 'text-rose-500'}`}>
+                {validateJsonMeta(jsonMetaInput) ? '✓ JSON валиден' : '✗ Ошибка в JSON'}
+              </span>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-3">
           <button
             onClick={parseSvgCode}
@@ -926,11 +981,13 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
           >
             Распознать иконки
           </button>
-          {svgCodeInput.trim() && (
-            <span className="text-xs text-slate-500">
-              Найдено {countSvgBlocks(svgCodeInput)} SVG-блоков
-            </span>
-          )}
+          <button
+            onClick={applyJsonMetadata}
+            disabled={!jsonMetaInput.trim() || !validateJsonMeta(jsonMetaInput)}
+            className="px-3 py-1.5 rounded-md bg-slate-700 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Применить метаданные к паку
+          </button>
         </div>
       </div>
 
