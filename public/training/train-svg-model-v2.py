@@ -39,6 +39,15 @@ Requirements:
 
 import os
 import sys
+
+# Fix Windows console encoding (cp1251 can't handle emoji/UTF-8)
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 import json
 import argparse
 import math
@@ -643,4 +652,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
