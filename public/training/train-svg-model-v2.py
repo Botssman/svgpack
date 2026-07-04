@@ -17,7 +17,8 @@ Key improvements over v1:
   7. COSINE WITH MIN LR: Better LR schedule with floor
   8. NO REPEAT N-GRAM: Prevents repetitive SVG paths
 
-Optimized for RTX 4070 Ti (12GB VRAM).
+Optimized for RTX 4070 (12GB VRAM).
+Uses Qwen3-4B-Instruct (upgraded from Qwen2.5-Coder-3B for better code generation).
 
 Usage:
   python public/training/train-svg-model-v2.py
@@ -91,7 +92,7 @@ else:
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / 'checkpoints'
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / 'svg-model'
 
-MODEL_NAME = "Qwen/Qwen2.5-Coder-3B-Instruct"
+MODEL_NAME = "Qwen/Qwen3-4B-Instruct"
 
 # QLoRA parameters — based on research best practices
 LORA_R = 32           # Rank: 32 good for complex SVG structure
@@ -118,7 +119,8 @@ SYSTEM_PROMPT = """You are an SVG icon designer. Rules:
 - Outlined: fill="none" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"
 - Filled: fill="currentColor" stroke="none"
 - Keep simple: 1-5 elements, no text/labels/defs/filters
-- Output SVG only, no markdown or explanation"""
+- Output SVG only, no markdown or explanation
+/no_think"""
 
 
 # ─── Loss Masking ─────────────────────────────────────────────────────
@@ -227,6 +229,19 @@ def load_dataset(dataset_dir: Path, max_seq_len: int, tokenizer,
         print("  📈 Curriculum learning: sorted by complexity (simple → complex)")
 
     # Format into chat template
+    # Qwen3: pass enable_thinking=False to disable <think> blocks in training data
+    _think_kwargs = {}
+    try:
+        tokenizer.apply_chat_template(
+            [{'role': 'user', 'content': 'x'}],
+            tokenize=False, add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        _think_kwargs['enable_thinking'] = False
+        print("  🧠 Qwen3: thinking mode OFF в chat template")
+    except TypeError:
+        pass  # Not a Qwen3 model
+
     def format_example(example):
         """Convert messages to model's chat format."""
         messages = example['messages']
@@ -234,6 +249,7 @@ def load_dataset(dataset_dir: Path, max_seq_len: int, tokenizer,
             messages,
             tokenize=False,
             add_generation_prompt=False,
+            **_think_kwargs,
         )
         return {'text': text}
 
@@ -322,6 +338,21 @@ def setup_model_and_tokenizer(model_name: str, max_seq_len: int):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # Qwen3: disable thinking mode for faster, direct SVG output
+    # Thinking mode adds <think>...</think> blocks which waste tokens
+    # for structured output like SVG. We want direct generation.
+    if hasattr(tokenizer, 'apply_chat_template'):
+        # Test if this is a Qwen3 model with thinking support
+        try:
+            test_out = tokenizer.apply_chat_template(
+                [{'role': 'user', 'content': 'test'}],
+                tokenize=False, add_generation_prompt=True,
+                enable_thinking=False,
+            )
+            print("  ✅ Qwen3 thinking mode: DISABLED (direct SVG output)")
+        except TypeError:
+            print("  ℹ️ Not a Qwen3 thinking model (standard generation)")
+
     # 4-bit quantization config
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -331,6 +362,8 @@ def setup_model_and_tokenizer(model_name: str, max_seq_len: int):
     )
 
     # Load model
+    # Qwen3-4B is ~1B more params than Qwen2.5-3B, but still fits 12GB VRAM
+    # with QLoRA 4-bit + gradient checkpointing + batch_size=1
     model_kwargs = {
         'quantization_config': bnb_config,
         'device_map': 'auto',
@@ -378,11 +411,12 @@ def setup_model_and_tokenizer(model_name: str, max_seq_len: int):
 class SVGGenerationCallback(TrainerCallback):
     """Callback to generate sample SVGs during training for quality monitoring."""
 
-    def __init__(self, tokenizer, prompt_samples, log_dir: Path, every_n_steps=500):
+    def __init__(self, tokenizer, prompt_samples, log_dir: Path, every_n_steps=500, think_kwargs=None):
         self.tokenizer = tokenizer
         self.prompt_samples = prompt_samples
         self.log_dir = log_dir
         self.every_n_steps = every_n_steps
+        self._think_kwargs = think_kwargs or {}
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def on_step_end(self, args, state, control, model=None, **kwargs):
@@ -402,7 +436,8 @@ class SVGGenerationCallback(TrainerCallback):
                 {'role': 'user', 'content': prompt},
             ]
             text = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
+                messages, tokenize=False, add_generation_prompt=True,
+                **self._think_kwargs,
             )
             inputs = self.tokenizer(text, return_tensors='pt').to(model.device)
 
@@ -523,8 +558,8 @@ def train(args):
         eval_steps=500 if val_dataset else None,
 
         # Performance
-        dataloader_num_workers=4,
-        dataloader_pin_memory=True,
+        dataloader_num_workers=0 if sys.platform == 'win32' else 4,  # 0 on Windows (avoids hangs)
+        dataloader_pin_memory=True if sys.platform != 'win32' else False,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
 
@@ -552,6 +587,7 @@ def train(args):
         prompt_samples=sample_prompts,
         log_dir=CHECKPOINT_DIR / 'generations',
         every_n_steps=500,
+        think_kwargs=_think_kwargs,
     )
 
     # Data collator
