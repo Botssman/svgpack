@@ -68,8 +68,8 @@ from peft import (
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
-# Dataset: prefer v5 > v4 > v3 > default
-for _ds in ['dataset-v5', 'dataset-v4', 'dataset']:
+# Dataset: prefer v6 > v5 > v4 > default
+for _ds in ['dataset-v6', 'dataset-v5', 'dataset-v4', 'dataset']:
     if (_SCRIPT_DIR / _ds).exists():
         DATASET_DIR = _SCRIPT_DIR / _ds
         break
@@ -94,12 +94,12 @@ TARGET_MODULES = [
 DEFAULT_EPOCHS = 3           # 3 epochs (was 6 — overfitting!)
 DEFAULT_BATCH_SIZE = 2       # Per GPU (12GB VRAM limit)
 DEFAULT_GRAD_ACCUM = 8       # Effective batch = 2 * 8 = 16
-DEFAULT_LR = 5e-5            # 5e-5 (was 1.5e-4 — too high!)
+DEFAULT_LR = 2e-5            # 2e-5 (lower = more stable for QLoRA, was 5e-5)
 DEFAULT_MAX_SEQ_LEN = 2048
 DEFAULT_WARMUP_RATIO = 0.1   # 10% warmup
 
 SYSTEM_PROMPT = """You are an SVG icon designer. Rules:
-- Output only SVG elements: path, circle, rect, line, polyline, polygon, ellipse
+- Output only <path> elements with d attribute
 - No <svg> wrapper, no xmlns, no width/height, no <g>, no transform
 - ViewBox: 512x512, center icon, coords in 56-456
 - Use currentColor for all colors, no hex colors
