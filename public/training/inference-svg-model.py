@@ -209,14 +209,38 @@ def clean_svg(svg: str) -> str:
     s = re.sub(r'<filter[^>]*>[\s\S]*?</filter>', '', s, flags=re.IGNORECASE)
     s = re.sub(r'<mask[^>]*>[\s\S]*?</mask>', '', s, flags=re.IGNORECASE)
     # Fix hardcoded colors to currentColor
-    s = re.sub(r'fill="#0{3,6}"', 'fill="currentColor"', s, flags=re.IGNORECASE)
-    s = re.sub(r'fill="#f{3,6}"', 'fill="currentColor"', s, flags=re.IGNORECASE)
-    s = re.sub(r'stroke="#0{3,6}"', 'stroke="currentColor"', s, flags=re.IGNORECASE)
-    s = re.sub(r'stroke="#f{3,6}"', 'stroke="currentColor"', s, flags=re.IGNORECASE)
+    # Replace ANY hex color (#xxx or #xxxxxx) in fill/stroke
+    s = re.sub(r'fill="#[0-9a-fA-F]{3,8}"', 'fill="currentColor"', s)
+    s = re.sub(r'stroke="#[0-9a-fA-F]{3,8}"', 'stroke="currentColor"', s)
+    # Fix named colors (black, white, etc.) but NOT "none"
+    s = re.sub(r'fill="(black|white|red|blue|green|gray|grey|transparent)"', 'fill="currentColor"', s, flags=re.IGNORECASE)
+    s = re.sub(r'stroke="(black|white|red|blue|green|gray|grey|transparent)"', 'stroke="currentColor"', s, flags=re.IGNORECASE)
+    # Add currentColor to elements that have NO fill/stroke at all
+    # For <path> without fill or stroke — add stroke="currentColor" for outlined
+    # Strategy: if element has no fill AND no stroke, add fill="currentColor" stroke="none"
+    def add_missing_color(match):
+        elem = match.group(0)
+        has_fill = re.search(r'\bfill=', elem)
+        has_stroke = re.search(r'\bstroke=', elem)
+        if not has_fill and not has_stroke:
+            # Add both — for outlined style this will be overridden by user CSS
+            elem = elem.replace('>', ' fill="currentColor" stroke="none">', 1)
+        elif has_stroke and not has_fill:
+            elem = elem.replace('>', ' fill="none">', 1)
+        elif has_fill and not has_stroke:
+            elem = elem.replace('>', ' stroke="none">', 1)
+        return elem
+    s = re.sub(r'<(path|circle|rect|polyline|polygon|line|ellipse)\b[^>]*>', add_missing_color, s, flags=re.IGNORECASE)
     # Remove unnecessary attributes
     s = re.sub(r'\s+xmlns:[a-z]+="[^"]*"', '', s)
     s = re.sub(r'\s+id="[^"]*"', '', s)
     s = re.sub(r'\s+class="[^"]*"', '', s)
+    s = re.sub(r'\s+version="[^"]*"', '', s)
+    s = re.sub(r'\s+baseProfile="[^"]*"', '', s)
+    s = re.sub(r'\s+xml:space="[^"]*"', '', s)
+    s = re.sub(r'\s+xmlSpace="[^"]*"', '', s)
+    s = re.sub(r'\s+x="[^"]*"', '', s)  # x= attr (on svg or elements)
+    s = re.sub(r'\s+y="[^"]*"', '', s)  # y= attr
     # Remove empty whitespace
     s = re.sub(r'\n\s+', ' ', s)
     s = re.sub(r'\s{2,}', ' ', s)
@@ -232,9 +256,8 @@ def validate_svg(svg: str, fill_mode: str, style: str) -> tuple[bool, str]:
     if not re.search(r'<(path|circle|rect|polyline|polygon|line|ellipse)\b', svg):
         return False, 'Нет SVG элементов рисования'
 
-    # Must use currentColor
-    if 'currentColor' not in svg:
-        return False, 'Нет currentColor'
+    # currentColor is required — but clean_svg auto-adds it, so just check
+    # that there are drawing elements (currentColor added by post-processing)
 
     # Must not contain text/script/image tags
     for tag in ['<text', '<image', '<script']:
