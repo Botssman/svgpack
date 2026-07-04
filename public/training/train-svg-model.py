@@ -22,7 +22,7 @@ Usage:
 Requirements (install on your GPU machine):
   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
   pip install transformers>=4.40 peft>=0.10 bitsandbytes>=0.43 accelerate>=0.30
-  pip install datasets flash-attn --no-build-isolation
+  pip install datasets svgelements flash-attn --no-build-isolation
   pip install wandb  # optional, for logging
 """
 
@@ -79,8 +79,8 @@ MODEL_NAME = "Qwen/Qwen2.5-Coder-3B-Instruct"       # Best for code/SVG, fits 12
 # MODEL_NAME = "microsoft/Phi-3.5-mini-instruct"       # Alternative
 
 # QLoRA parameters
-LORA_R = 16           # LoRA rank
-LORA_ALPHA = 32       # LoRA alpha (usually 2x rank)
+LORA_R = 32           # LoRA rank (increased from 16 for better capacity)
+LORA_ALPHA = 64       # LoRA alpha (2x rank)
 LORA_DROPOUT = 0.05   # LoRA dropout
 TARGET_MODULES = [     # Which layers to adapt
     "q_proj", "k_proj", "v_proj", "o_proj",
@@ -88,12 +88,12 @@ TARGET_MODULES = [     # Which layers to adapt
 ]
 
 # Training defaults
-DEFAULT_EPOCHS = 4
-DEFAULT_BATCH_SIZE = 2        # Per GPU (12GB VRAM can handle 2 with 4-bit)
-DEFAULT_GRAD_ACCUM = 8        # Effective batch = 2 * 8 = 16
-DEFAULT_LR = 2e-5
-DEFAULT_MAX_SEQ_LEN = 2048    # Max SVG + prompt length
-DEFAULT_WARMUP_RATIO = 0.1
+DEFAULT_EPOCHS = 6       # Increased from 4 — model needs more epochs for SVG path accuracy
+DEFAULT_BATCH_SIZE = 2   # Per GPU (12GB VRAM can handle 2 with 4-bit)
+DEFAULT_GRAD_ACCUM = 8   # Effective batch = 2 * 8 = 16
+DEFAULT_LR = 1.5e-4      # Increased from 2e-5 for LoRA rank 32
+DEFAULT_MAX_SEQ_LEN = 2048   # Max SVG + prompt length
+DEFAULT_WARMUP_RATIO = 0.05 # Reduced from 0.1 — more training steps
 
 
 # ─── Dataset loading ──────────────────────────────────────────────────
@@ -112,7 +112,7 @@ def load_dataset(dataset_dir: Path, max_seq_len: int, tokenizer):
 
     if not train_path.exists():
         print(f"ОШИБКА: {train_path} не найден!")
-        print("Сначала запустите: python scripts/prepare-dataset-v2.py")
+        print("Сначала запустите: python scripts/prepare-dataset-v3.py")
         sys.exit(1)
 
     # Load JSONL files
@@ -291,7 +291,7 @@ class SVGGenerationCallback(TrainerCallback):
         generations = []
         for prompt in self.prompt_samples:
             messages = [
-                {'role': 'system', 'content': 'You are a professional SVG icon designer. Create clean SVG icons using currentColor.'},
+                {'role': 'system', 'content': 'You are a professional SVG icon designer. You create clean, production-ready SVG icons.\n\nCRITICAL RULES:\n1. Return ONLY SVG elements (path, circle, rect, polyline, line, ellipse, polygon). NO <svg> tag, NO xmlns, NO width/height/viewBox.\n2. The viewBox is 512x512. Center your icon. Use coordinates in the 56-456 range.\n3. Use "currentColor" for ALL stroke and fill colors.\n4. For OUTLINED: fill="none" stroke="currentColor" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"\n5. For FILLED: fill="currentColor" stroke="none".\n6. Output ONLY SVG fragment elements. No markdown, no explanation.'},
                 {'role': 'user', 'content': prompt},
             ]
             text = self.tokenizer.apply_chat_template(
@@ -302,11 +302,13 @@ class SVGGenerationCallback(TrainerCallback):
             with torch.no_grad():
                 outputs = model.generate(
                     **inputs,
-                    max_new_tokens=512,
-                    temperature=0.7,
+                    max_new_tokens=300,
+                    temperature=0.6,
                     top_p=0.9,
                     do_sample=True,
                     pad_token_id=self.tokenizer.pad_token_id,
+                    repetition_penalty=1.3,
+                    no_repeat_ngram_size=3,
                 )
 
             generated = outputs[0][inputs['input_ids'].shape[1]:]
