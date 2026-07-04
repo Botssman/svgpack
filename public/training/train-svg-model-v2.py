@@ -92,7 +92,7 @@ else:
 CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / 'checkpoints'
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / 'svg-model'
 
-MODEL_NAME = "Qwen/Qwen3-4B-Instruct"
+MODEL_NAME = "Qwen/Qwen3-4B-Instruct-2507"
 
 # QLoRA parameters — based on research best practices
 LORA_R = 32           # Rank: 32 good for complex SVG structure
