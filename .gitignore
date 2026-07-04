@@ -73,6 +73,19 @@ venv/
 __pycache__/
 *.pyc
 
+# Python training artifacts
+public/training/results/
+public/training/svg-model/
+public/training/checkpoints/
+public/training/scripts/
+public/training/run.py
+public/training/run_train.py
+public/training/t.py
+public/training/test*.py
+
+# Checkpoints (can be several GB)
+public/checkpoints/
+
 # Icon data files (too large for git, generated from sources) — except the ZIP for download
 public/icon-browser.html
 public/icons/
