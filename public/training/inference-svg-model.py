@@ -154,6 +154,7 @@ def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
                 do_sample=True,
                 pad_token_id=tokenizer.pad_token_id,
                 repetition_penalty=1.3,
+                no_repeat_ngram_size=3,
             )
 
         generated = outputs[0][inputs['input_ids'].shape[1]:]
