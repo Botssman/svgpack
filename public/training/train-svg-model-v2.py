@@ -582,12 +582,24 @@ def train(args):
         'outlined minimal icon "lightning bolt"',
     ]
 
+    # Detect Qwen3 thinking mode kwargs for generation callback
+    think_kwargs = {}
+    try:
+        tokenizer.apply_chat_template(
+            [{'role': 'user', 'content': 'x'}],
+            tokenize=False, add_generation_prompt=True,
+            enable_thinking=False,
+        )
+        think_kwargs['enable_thinking'] = False
+    except TypeError:
+        pass
+
     generation_callback = SVGGenerationCallback(
         tokenizer=tokenizer,
         prompt_samples=sample_prompts,
         log_dir=CHECKPOINT_DIR / 'generations',
         every_n_steps=500,
-        think_kwargs=_think_kwargs,
+        think_kwargs=think_kwargs,
     )
 
     # Data collator
