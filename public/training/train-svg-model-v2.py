@@ -54,8 +54,11 @@ import math
 from pathlib import Path
 from datetime import datetime
 
-import torch
+# CRITICAL: on Windows, importing torch before datasets causes a silent crash
+# due to DLL/CRT conflict between PyTorch and PyArrow.
+# MUST import datasets BEFORE torch!
 from datasets import Dataset
+import torch
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,

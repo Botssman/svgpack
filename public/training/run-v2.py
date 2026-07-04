@@ -20,12 +20,15 @@ print(f'[run-v2] Python: {sys.executable}', flush=True)
 print(f'[run-v2] CUDA check...', flush=True)
 
 try:
+    # CRITICAL: import datasets BEFORE torch on Windows!
+    # If torch loads first, it breaks PyArrow/DLL causing silent crash.
+    from datasets import Dataset as _ds
     import torch
     print(f'[run-v2] PyTorch {torch.__version__}, CUDA: {torch.cuda.is_available()}', flush=True)
     if torch.cuda.is_available():
         print(f'[run-v2] GPU: {torch.cuda.get_device_name(0)}', flush=True)
-except ImportError:
-    print('[run-v2] ERROR: torch not installed!', flush=True)
+except ImportError as e:
+    print(f'[run-v2] ERROR: import failed: {e}', flush=True)
     sys.exit(1)
 
 print(f'[run-v2] Loading train-svg-model-v2.py...', flush=True)
