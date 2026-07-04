@@ -216,21 +216,28 @@ def clean_svg(svg: str) -> str:
     s = re.sub(r'fill="(black|white|red|blue|green|gray|grey|transparent)"', 'fill="currentColor"', s, flags=re.IGNORECASE)
     s = re.sub(r'stroke="(black|white|red|blue|green|gray|grey|transparent)"', 'stroke="currentColor"', s, flags=re.IGNORECASE)
     # Add currentColor to elements that have NO fill/stroke at all
-    # For <path> without fill or stroke — add stroke="currentColor" for outlined
-    # Strategy: if element has no fill AND no stroke, add fill="currentColor" stroke="none"
     def add_missing_color(match):
         elem = match.group(0)
+        is_self_closing = elem.rstrip().endswith('/>')
         has_fill = re.search(r'\bfill=', elem)
         has_stroke = re.search(r'\bstroke=', elem)
         if not has_fill and not has_stroke:
-            # Add both — for outlined style this will be overridden by user CSS
-            elem = elem.replace('>', ' fill="currentColor" stroke="none">', 1)
+            if is_self_closing:
+                elem = elem.replace('/>', ' fill="currentColor" stroke="none"/>', 1)
+            else:
+                elem = elem.replace('>', ' fill="currentColor" stroke="none">', 1)
         elif has_stroke and not has_fill:
-            elem = elem.replace('>', ' fill="none">', 1)
+            if is_self_closing:
+                elem = elem.replace('/>', ' fill="none"/>', 1)
+            else:
+                elem = elem.replace('>', ' fill="none">', 1)
         elif has_fill and not has_stroke:
-            elem = elem.replace('>', ' stroke="none">', 1)
+            if is_self_closing:
+                elem = elem.replace('/>', ' stroke="none"/>', 1)
+            else:
+                elem = elem.replace('>', ' stroke="none">', 1)
         return elem
-    s = re.sub(r'<(path|circle|rect|polyline|polygon|line|ellipse)\b[^>]*>', add_missing_color, s, flags=re.IGNORECASE)
+    s = re.sub(r'<(path|circle|rect|polyline|polygon|line|ellipse)\b[^>]*/?>', add_missing_color, s, flags=re.IGNORECASE)
     # Remove unnecessary attributes
     s = re.sub(r'\s+xmlns:[a-z]+="[^"]*"', '', s)
     s = re.sub(r'\s+id="[^"]*"', '', s)
