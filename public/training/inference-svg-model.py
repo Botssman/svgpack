@@ -279,13 +279,21 @@ def validate_svg(svg: str, fill_mode: str, style: str) -> tuple[bool, str]:
 
 # ─── Interactive mode ─────────────────────────────────────────────────
 
-def interactive_mode(model, tokenizer):
+def interactive_mode(model, tokenizer, output_dir: str = None):
     """Interactive prompt loop."""
+    output_path = None
+    if output_dir:
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+
     print("\n🎨 SVG Icon Generator — Интерактивный режим")
     print("Введите описание иконки (или 'quit' для выхода)")
     print("Формат: [filled/outlined] [flat/minimal] icon \"name\"")
+    if output_path:
+        print(f"📁 Сохранение: {output_path}")
     print()
 
+    counter = 1
     while True:
         try:
             user_input = input("🎯 Prompt > ").strip()
@@ -322,6 +330,14 @@ def interactive_mode(model, tokenizer):
             print(f"\n❌ Ошибка: {result['error']}")
             if result['svg']:
                 print(f"Лучший результат: {result['svg'][:100]}...")
+
+        # Save to file
+        if output_path and result.get('svg'):
+            safe_name = re.sub(r'[^\w-]', '_', user_input)[:40]
+            svg_file = output_path / f'{counter:03d}_{safe_name}.svg'
+            svg_file.write_text(result['svg'], encoding='utf-8')
+            print(f"💾 Сохранено: {svg_file}")
+            counter += 1
 
         print()
 
@@ -486,7 +502,7 @@ def main():
 
     # Run
     if args.interactive:
-        interactive_mode(model, tokenizer)
+        interactive_mode(model, tokenizer, args.output)
     elif args.serve:
         serve_mode(model, tokenizer, args.port)
     elif args.batch:
