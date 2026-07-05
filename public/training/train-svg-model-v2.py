@@ -82,7 +82,7 @@ from peft import (
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
 # Dataset: prefer v6 > v5 > v4 > default
-for _ds in ['dataset-v6', 'dataset-v5', 'dataset-v4', 'dataset']:
+for _ds in ['dataset-v7', 'dataset-v6', 'dataset-v5', 'dataset-v4', 'dataset']:
     if (_SCRIPT_DIR / _ds).exists():
         DATASET_DIR = _SCRIPT_DIR / _ds
         break
@@ -97,14 +97,14 @@ MODEL_NAME = "Qwen/Qwen3-4B-Instruct-2507"
 # QLoRA parameters — based on research best practices
 LORA_R = 32           # Rank: 32 good for complex SVG structure
 LORA_ALPHA = 64       # Alpha: 2x rank (standard practice)
-LORA_DROPOUT = 0.05   # Low dropout for small dataset
+LORA_DROPOUT = 0.1    # Higher dropout to reduce overfitting (v6 showed 24% gap)
 TARGET_MODULES = [
     "q_proj", "k_proj", "v_proj", "o_proj",     # Attention
     "gate_proj", "up_proj", "down_proj",          # MLP
 ]
 
 # Training defaults — adjusted for small dataset quality
-DEFAULT_EPOCHS = 3           # 3 epochs (was 6 — overfitting!)
+DEFAULT_EPOCHS = 2           # 2 epochs (v6 overfit at epoch 3, 24% train/eval gap)
 DEFAULT_BATCH_SIZE = 2       # Per GPU (12GB VRAM limit)
 DEFAULT_GRAD_ACCUM = 8       # Effective batch = 2 * 8 = 16
 DEFAULT_LR = 2e-5            # 2e-5 (lower = more stable for QLoRA, was 5e-5)
