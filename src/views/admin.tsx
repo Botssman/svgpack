@@ -1190,42 +1190,61 @@ function BatchGenerator() {
     }
 
     setGenerating(true)
-    setResults([])
+    setResults(icons.map(i => ({ nameEn: i.nameEn, nameRu: i.nameRu, svg: '', error: undefined, warning: undefined, saved: false })))
     setProgress({ current: 0, total: icons.length })
 
-    try {
-      const res = await fetch('/api/generate-svg-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          icons,
-          style,
-          fillMode,
-          packId: targetPackId || undefined,
-        }),
-      })
+    // Generate icons one by one using single-icon endpoint
+    // (batch endpoint crashes the server due to CLI process limits)
+    let successCount = 0
+    let failCount = 0
 
-      const data = await res.json()
+    for (let i = 0; i < icons.length; i++) {
+      const icon = icons[i]
+      setProgress({ current: i, total: icons.length })
 
-      if (data.results) {
-        setResults(data.results)
-        const success = data.results.filter((r: BatchIconResult) => r.svg && !r.error).length
-        toast({
-          title: `Готово: ${success} из ${icons.length} иконок сгенерировано`,
-          description: data.summary?.failed > 0 ? `${data.summary.failed} не удалось` : undefined,
+      try {
+        const res = await fetch('/api/generate-svg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: icon.nameEn,
+            style,
+            fillMode,
+          }),
         })
-      } else if (data.error) {
-        const envInfo = data.envVarsPresent
-          ? ` (BASE_URL: ${data.envVarsPresent.Z_AI_BASE_URL ? '✓' : '✗'}, API_KEY: ${data.envVarsPresent.Z_AI_API_KEY ? '✓' : '✗'})`
-          : ''
-        toast({ title: `Ошибка: ${data.error}${envInfo}`, description: data.hint })
+
+        const data = await res.json()
+
+        if (data.svg) {
+          successCount++
+          setResults(prev => prev.map((r, idx) =>
+            idx === i ? { ...r, svg: data.svg, warning: data.warning } : r
+          ))
+        } else {
+          failCount++
+          setResults(prev => prev.map((r, idx) =>
+            idx === i ? { ...r, error: data.error || 'Генерация не удалась' } : r
+          ))
+        }
+      } catch {
+        failCount++
+        setResults(prev => prev.map((r, idx) =>
+          idx === i ? { ...r, error: 'Ошибка генерации' } : r
+        ))
       }
-    } catch (err) {
-      toast({ title: 'Ошибка генерации' })
-    } finally {
-      setGenerating(false)
-      setProgress({ current: 0, total: 0 })
+
+      // Delay between requests
+      if (i < icons.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
     }
+
+    setProgress({ current: icons.length, total: icons.length })
+    toast({
+      title: `Готово: ${successCount} из ${icons.length} иконок сгенерировано`,
+      description: failCount > 0 ? `${failCount} не удалось` : undefined,
+    })
+    setGenerating(false)
   }
 
   // Save a single generated icon to the target pack
