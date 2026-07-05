@@ -1500,7 +1500,9 @@ function BatchGenerator() {
                   {result.svg ? (
                     <IconView innerSvg={result.svg} viewBox="0 0 512 512" cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={40} />
                   ) : result.error ? (
-                    <span className="text-rose-400 text-xs text-center">Ошибка</span>
+                    <span className="text-rose-400 text-[9px] text-center leading-tight px-1" title={result.error}>
+                      {result.error.length > 40 ? result.error.substring(0, 40) + '...' : result.error}
+                    </span>
                   ) : (
                     <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
                   )}

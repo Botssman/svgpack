@@ -318,12 +318,29 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
           { role: 'user' as const, content: `Your previous output was invalid: ${lastError}. Fix it and output ONLY valid SVG elements using currentColor. No <svg> tags, no hex colors, no text, no background, no <g> tags.` },
         ]
 
-    const completion = await zai.chat.completions.create({
-      messages,
-      thinking: { type: 'disabled' },
-    })
+    let completion: any
+    try {
+      completion = await zai.chat.completions.create({
+        messages,
+        thinking: { type: 'disabled' },
+      })
+    } catch (apiErr) {
+      const apiErrMsg = apiErr instanceof Error ? apiErr.message : String(apiErr)
+      console.error(`[generate-svg-batch] "${nameEn}" API call failed (attempt ${attempt + 1}):`, apiErrMsg)
+      lastError = `API error: ${apiErrMsg}`
+      lastSvg = ''
+      continue
+    }
 
-    let svgContent = completion.choices?.[0]?.message?.content?.trim() || ''
+    // Log API response structure for debugging
+    if (!completion?.choices?.[0]?.message?.content) {
+      console.error(`[generate-svg-batch] "${nameEn}" unexpected API response:`, JSON.stringify(completion).substring(0, 500))
+      lastError = `Unexpected API response: ${JSON.stringify(completion).substring(0, 200)}`
+      lastSvg = ''
+      continue
+    }
+
+    let svgContent = completion.choices[0].message.content.trim()
     svgContent = cleanSvgContent(svgContent)
     svgContent = autoFixSvg(svgContent, fillMode)
 
@@ -334,19 +351,26 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
 
     lastError = validation.reason || 'Unknown validation error'
     lastSvg = svgContent
-    console.warn(`[generate-svg-batch] "${nameEn}" attempt ${attempt + 1} failed: ${lastError}`)
+    console.warn(`[generate-svg-batch] "${nameEn}" attempt ${attempt + 1} validation failed: ${lastError}`)
   }
 
   // Fallback: simplified prompt
   console.error(`[generate-svg-batch] "${nameEn}" all attempts failed, trying fallback`)
 
-  const fallbackCompletion = await zai.chat.completions.create({
-    messages: [
-      { role: 'system', content: 'You create simple SVG icons. Use only <path>, <circle>, <rect> elements. Use currentColor for all colors. No <svg> tags. No background. No text. No <g> tags. No hex colors.' },
-      { role: 'user', content: `Simple ${isFilled ? 'filled' : 'outlined'} SVG icon of "${enPrompt}". Use currentColor. Only SVG elements, no wrapper. ${isFilled ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="28"'}.` },
-    ],
-    thinking: { type: 'disabled' },
-  })
+  let fallbackCompletion: any
+  try {
+    fallbackCompletion = await zai.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'You create simple SVG icons. Use only <path>, <circle>, <rect> elements. Use currentColor for all colors. No <svg> tags. No background. No text. No <g> tags. No hex colors.' },
+        { role: 'user', content: `Simple ${isFilled ? 'filled' : 'outlined'} SVG icon of "${enPrompt}". Use currentColor. Only SVG elements, no wrapper. ${isFilled ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="28"'}.` },
+      ],
+      thinking: { type: 'disabled' },
+    })
+  } catch (fbErr) {
+    const fbErrMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
+    console.error(`[generate-svg-batch] "${nameEn}" fallback API call failed:`, fbErrMsg)
+    return { nameEn, nameRu, svg: '', error: `API error (fallback): ${fbErrMsg}` }
+  }
 
   let fallbackSvg = fallbackCompletion.choices?.[0]?.message?.content?.trim() || ''
   fallbackSvg = cleanSvgContent(fallbackSvg)
