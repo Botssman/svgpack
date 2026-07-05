@@ -43,7 +43,8 @@ from peft import PeftModel
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL_PATH = PROJECT_ROOT / 'svg-model' / 'lora-adapter'
 
-SYSTEM_PROMPT = """You are an SVG icon designer. Rules:
+SYSTEM_PROMPT = """/no_think
+You are an SVG icon designer. Rules:
 - Output only SVG elements: path, circle, rect, line, polyline, polygon, ellipse
 - No <svg> wrapper, no xmlns, no width/height, no <g>, no transform
 - ViewBox: 512x512, center icon, coords in 56-456
@@ -130,6 +131,7 @@ def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
         messages,
         tokenize=False,
         add_generation_prompt=True,
+        enable_thinking=False,
     )
 
     inputs = tokenizer(text, return_tensors='pt').to(model.device)
@@ -148,7 +150,7 @@ def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
                 top_p=top_p,
                 do_sample=True,
                 pad_token_id=tokenizer.pad_token_id,
-                repetition_penalty=1.15,  # Lower than before — SVG needs repetition
+                repetition_penalty=1.5,  # Prevent looping seen during training
             )
 
         generated = outputs[0][inputs['input_ids'].shape[1]:]
