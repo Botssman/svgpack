@@ -414,9 +414,21 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('[generate-svg-batch] Error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Batch generation failed' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Batch generation failed'
+    // If Z AI config is missing, return helpful error with env var status
+    if (message.includes('Z AI config missing') || message.includes('Configuration file not found')) {
+      return NextResponse.json(
+        {
+          error: message,
+          hint: 'On Vercel: add Z_AI_BASE_URL and Z_AI_API_KEY in Project Settings → Environment Variables, then redeploy.',
+          envVarsPresent: {
+            Z_AI_BASE_URL: !!process.env.Z_AI_BASE_URL,
+            Z_AI_API_KEY: !!process.env.Z_AI_API_KEY,
+          },
+        },
+        { status: 500 }
+      )
+    }
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

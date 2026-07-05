@@ -1215,7 +1215,10 @@ function BatchGenerator() {
           description: data.summary?.failed > 0 ? `${data.summary.failed} не удалось` : undefined,
         })
       } else if (data.error) {
-        toast({ title: `Ошибка: ${data.error}` })
+        const envInfo = data.envVarsPresent
+          ? ` (BASE_URL: ${data.envVarsPresent.Z_AI_BASE_URL ? '✓' : '✗'}, API_KEY: ${data.envVarsPresent.Z_AI_API_KEY ? '✓' : '✗'})`
+          : ''
+        toast({ title: `Ошибка: ${data.error}${envInfo}`, description: data.hint })
       }
     } catch (err) {
       toast({ title: 'Ошибка генерации' })
