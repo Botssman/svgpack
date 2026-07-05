@@ -1,10 +1,10 @@
 /**
- * Z AI Proxy — forwards /api/zai-proxy/chat/completions to internal-api.z.ai
+ * Z AI Proxy — forwards requests from Vercel to internal-api.z.ai
  *
- * This machine has access to internal-api.z.ai (private Aliyun network).
- * Vercel does NOT have access. So we proxy through here.
+ * Flow: svgpack.vercel.app → preview-xxx.space-z.ai/api/zai-proxy → internal-api.z.ai
  *
- * Flow: Vercel → preview URL → this route → internal-api.z.ai
+ * This machine is on the Aliyun network and CAN reach internal-api.z.ai.
+ * Vercel (AWS) CANNOT reach it (private IPs 172.25.x.x).
  *
  * Security: X-Proxy-Secret header must match ZAI_PROXY_SECRET env var
  */
@@ -12,6 +12,17 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const INTERNAL_API = 'https://internal-api.z.ai/v1'
 const PROXY_SECRET = process.env.ZAI_PROXY_SECRET || ''
+
+// Read Z AI credentials from the config file (available on this machine)
+function getZaiCredentials() {
+  // These are set in .env or available via the z-ai-config file
+  return {
+    apiKey: process.env.Z_AI_API_KEY || 'Z.ai',
+    chatId: process.env.Z_AI_CHAT_ID || '',
+    token: process.env.Z_AI_TOKEN || '',
+    userId: process.env.Z_AI_USER_ID || '',
+  }
+}
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -21,26 +32,24 @@ export async function POST(req: NextRequest) {
   if (PROXY_SECRET) {
     const proxyAuth = req.headers.get('x-proxy-secret')
     if (proxyAuth !== PROXY_SECRET) {
+      console.warn('[zai-proxy] Unauthorized - invalid proxy secret')
       return NextResponse.json({ error: 'Proxy unauthorized' }, { status: 401 })
     }
   }
 
   try {
-    // Read request body
     const body = await req.text()
+    const creds = getZaiCredentials()
 
-    // Forward headers
+    // Build headers for internal API
     const headers: Record<string, string> = {
-      'Content-Type': req.headers.get('content-type') || 'application/json',
-      'Authorization': req.headers.get('authorization') || '',
-      'X-Z-AI-From': req.headers.get('x-z-ai-from') || 'Z',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${creds.apiKey}`,
+      'X-Z-AI-From': 'Z',
     }
-    const xChatId = req.headers.get('x-chat-id')
-    const xToken = req.headers.get('x-token')
-    const xUserId = req.headers.get('x-user-id')
-    if (xChatId) headers['X-Chat-Id'] = xChatId
-    if (xToken) headers['X-Token'] = xToken
-    if (xUserId) headers['X-User-Id'] = xUserId
+    if (creds.chatId) headers['X-Chat-Id'] = creds.chatId
+    if (creds.token) headers['X-Token'] = creds.token
+    if (creds.userId) headers['X-User-Id'] = creds.userId
 
     const targetUrl = `${INTERNAL_API}/chat/completions`
 
@@ -53,11 +62,19 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(55000),
     })
 
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[zai-proxy] API returned ${response.status}: ${errorText.substring(0, 200)}`)
+      return NextResponse.json(
+        { error: `API error ${response.status}: ${errorText.substring(0, 500)}` },
+        { status: response.status }
+      )
+    }
+
     const contentType = response.headers.get('content-type') || ''
     const isStream = contentType.includes('text/event-stream') || contentType.includes('text/plain')
 
     if (isStream && response.body) {
-      // Stream response back
       return new NextResponse(response.body, {
         status: response.status,
         headers: {
@@ -68,7 +85,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Regular response
     const data = await response.text()
     console.log(`[zai-proxy] ← ${response.status} (${data.length} bytes)`)
 
@@ -83,7 +99,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Handle CORS preflight
+// CORS preflight
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
