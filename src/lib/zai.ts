@@ -1,16 +1,16 @@
 /**
  * ZAI SDK Helper — initializes ZAI with env vars (Vercel) or config file (local)
  *
- * Priority on Vercel (serverless, no filesystem):
- *   1. Environment variables → direct constructor call
- *   2. ZAI.create() — reads .z-ai-config from filesystem (local dev)
+ * On Vercel: uses proxy URL (Z_AI_BASE_URL → our proxy → internal-api.z.ai)
+ * Locally: reads .z-ai-config file directly
  *
- * Required env vars:
- *   Z_AI_BASE_URL=https://internal-api.z.ai/v1
+ * Required env vars on Vercel:
+ *   Z_AI_BASE_URL=https://preview-xxx.space-z.ai/api/zai-proxy  (proxy URL)
  *   Z_AI_API_KEY=Z.ai
- *   Z_AI_TOKEN=eyJ... (optional)
- *   Z_AI_CHAT_ID=chat-xxx (optional)
- *   Z_AI_USER_ID=xxx (optional)
+ *   ZAI_PROXY_SECRET=xxx  (shared secret with the proxy)
+ *   Z_AI_TOKEN=eyJ...
+ *   Z_AI_CHAT_ID=chat-xxx
+ *   Z_AI_USER_ID=xxx
  */
 import ZAI from 'z-ai-web-dev-sdk'
 
@@ -30,10 +30,47 @@ export async function getZAI() {
     if (process.env.Z_AI_USER_ID) config.userId = process.env.Z_AI_USER_ID
     if (process.env.Z_AI_TOKEN) config.token = process.env.Z_AI_TOKEN
 
-    // Call constructor directly — works at runtime even though TS says it's private
-    // The JS constructor just does: this.config = config — no side effects
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _zaiInstance = new (ZAI as any)(config)
+
+    // If using proxy, monkey-patch fetch to add X-Proxy-Secret header
+    const proxySecret = process.env.ZAI_PROXY_SECRET
+    if (proxySecret && baseUrl.includes('/api/zai-proxy')) {
+      console.log('[zai] 🔒 Proxy mode detected, adding X-Proxy-Secret to all requests')
+      const originalCreate = _zaiInstance.chat.completions.create.bind(_zaiInstance)
+      _zaiInstance.chat.completions.create = async (body: any) => {
+        // The SDK uses global fetch — we need to intercept it
+        // Instead, we'll use a custom approach: directly call fetch with the proxy secret
+        const { baseUrl: bUrl, chatId, userId, apiKey: aKey, token } = _zaiInstance.config
+        const url = `${bUrl}/chat/completions`
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${aKey}`,
+          'X-Z-AI-From': 'Z',
+          'X-Proxy-Secret': proxySecret,
+        }
+        if (chatId) headers['X-Chat-Id'] = chatId
+        if (userId) headers['X-User-Id'] = userId
+        if (token) headers['X-Token'] = token
+
+        const requestBody = { ...body, thinking: body.thinking || { type: 'disabled' } }
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+        })
+        if (!response.ok) {
+          const errorBody = await response.text()
+          throw new Error(`API request failed with status ${response.status}: ${errorBody}`)
+        }
+        const contentType = response.headers.get('content-type') || ''
+        if (requestBody.stream && (contentType.includes('text/event-stream') || contentType.includes('text/plain'))) {
+          return response.body
+        }
+        return await response.json()
+      }
+    }
+
     console.log('[zai] ✅ Initialized from environment variables (baseUrl:', baseUrl + ')')
     return _zaiInstance
   }
@@ -64,9 +101,10 @@ export function getZAIConfigStatus() {
   const hasChatId = !!process.env.Z_AI_CHAT_ID
   const hasUserId = !!process.env.Z_AI_USER_ID
   const hasToken = !!process.env.Z_AI_TOKEN
+  const hasProxySecret = !!process.env.ZAI_PROXY_SECRET
+  const isProxyMode = !!(process.env.Z_AI_BASE_URL || '').includes('/api/zai-proxy')
 
   const envVarsReady = hasBaseUrl && hasApiKey
-  const configFileExists = false // We don't check filesystem to avoid issues
 
   return {
     envVars: {
@@ -75,16 +113,15 @@ export function getZAIConfigStatus() {
       Z_AI_CHAT_ID: hasChatId,
       Z_AI_USER_ID: hasUserId,
       Z_AI_TOKEN: hasToken,
+      ZAI_PROXY_SECRET: hasProxySecret,
       ready: envVarsReady,
     },
-    configFile: {
-      exists: configFileExists,
-    },
+    proxyMode: isProxyMode,
     initialized: !!_zaiInstance,
     method: _zaiInstance
       ? 'already initialized'
       : envVarsReady
-        ? 'will use env vars'
+        ? isProxyMode ? 'will use proxy' : 'will use direct'
         : 'will try config file',
   }
 }
