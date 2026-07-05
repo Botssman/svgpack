@@ -1138,6 +1138,22 @@ function BatchGenerator() {
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [results, setResults] = useState<BatchIconResult[]>([])
   const [savingAll, setSavingAll] = useState(false)
+  const [zaiStatus, setZaiStatus] = useState<{ ok: boolean; method?: string; error?: string; envVars?: Record<string, boolean> } | null>(null)
+
+  // Check Z AI config status on mount
+  useEffect(() => {
+    fetch('/api/debug-zai')
+      .then(r => r.json())
+      .then(data => {
+        setZaiStatus({
+          ok: data.initResult?.success ?? false,
+          method: data.initResult?.method || data.initResult?.error,
+          error: data.initResult?.error,
+          envVars: data.status?.envVars,
+        })
+      })
+      .catch(() => setZaiStatus({ ok: false, error: 'Failed to check Z AI status' }))
+  }, [])
 
   // Load packs list for target selection
   useEffect(() => {
@@ -1343,6 +1359,33 @@ function BatchGenerator() {
 
   return (
     <div className="space-y-6">
+      {/* Z AI Status indicator */}
+      <div className={`rounded-lg border px-4 py-2.5 flex items-center gap-3 text-sm ${
+        zaiStatus === null ? 'border-slate-200 bg-slate-50 text-slate-500' :
+        zaiStatus.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' :
+        'border-rose-200 bg-rose-50 text-rose-700'
+      }`}>
+        <span className={`w-2 h-2 rounded-full ${
+          zaiStatus === null ? 'bg-slate-300 animate-pulse' :
+          zaiStatus.ok ? 'bg-emerald-500' :
+          'bg-rose-500'
+        }`} />
+        <span className="font-medium">Z AI:</span>
+        {zaiStatus === null ? (
+          <span>Проверка...</span>
+        ) : zaiStatus.ok ? (
+          <span>Подключено ({zaiStatus.method})</span>
+        ) : (
+          <span>Не подключено — {zaiStatus.error || 'ошибка конфигурации'}</span>
+        )}
+        {zaiStatus?.envVars && !zaiStatus.ok && (
+          <span className="text-xs opacity-70">
+            (Z_AI_BASE_URL: {zaiStatus.envVars.Z_AI_BASE_URL ? '✓' : '✗'},
+            Z_AI_API_KEY: {zaiStatus.envVars.Z_AI_API_KEY ? '✓' : '✗'})
+          </span>
+        )}
+      </div>
+
       {/* Input section */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
         <h3 className="font-semibold text-slate-900">Пакетная генерация иконок</h3>
