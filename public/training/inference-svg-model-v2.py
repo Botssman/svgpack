@@ -150,7 +150,7 @@ def generate_svg(model, tokenizer, prompt: str, fill_mode: str = 'outlined',
                 top_p=top_p,
                 do_sample=True,
                 pad_token_id=tokenizer.pad_token_id,
-                repetition_penalty=1.5,  # Prevent looping seen during training
+                repetition_penalty=1.2,  # Balance: prevent looping without breaking paths
             )
 
         generated = outputs[0][inputs['input_ids'].shape[1]:]
@@ -191,6 +191,9 @@ def clean_svg(svg: str, fill_mode: str = 'outlined') -> str:
     """
     s = svg.strip()
 
+    # Strip <think>...</think> blocks (Qwen3 thinking output)
+    s = re.sub(r'<think>[\s\S]*?</think>', '', s, flags=re.IGNORECASE)
+
     # Strip markdown code blocks
     s = re.sub(r'^```(?:svg|xml|html)?\s*\n?', '', s)
     s = re.sub(r'\n?```\s*$', '', s)
@@ -207,6 +210,14 @@ def clean_svg(svg: str, fill_mode: str = 'outlined') -> str:
         )
         if elem_match:
             s = s[elem_match.start():]
+
+    # CRITICAL: Truncate any text after the last SVG element self-closing tag
+    # The model sometimes generates conversational text after SVG
+    last_svg_end = -1
+    for m in re.finditer(r'/>', s):
+        last_svg_end = m.end()
+    if last_svg_end > 0:
+        s = s[:last_svg_end]
 
     # Strip xml declaration
     s = re.sub(r'<\?xml[^?]*\?>', '', s, flags=re.IGNORECASE)
