@@ -42,10 +42,29 @@ export async function GET() {
       : 'NOT SET',
   }
 
+  // Test actual network connectivity to the API
+  let networkTest = { reachable: false, httpStatus: 0, error: '' }
+  try {
+    const testRes = await fetch('https://internal-api.z.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer Z.ai',
+        'X-Z-AI-From': 'Z',
+      },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], thinking: { type: 'disabled' } }),
+      signal: AbortSignal.timeout(10000), // 10s timeout
+    })
+    networkTest = { reachable: true, httpStatus: testRes.status, error: testRes.ok ? '' : `HTTP ${testRes.status}` }
+  } catch (netErr) {
+    networkTest = { reachable: false, httpStatus: 0, error: netErr instanceof Error ? netErr.message : String(netErr) }
+  }
+
   return NextResponse.json({
     status,
     initResult,
     envCheck,
+    networkTest,
     isVercel: !!process.env.VERCEL,
     vercelRegion: process.env.VERCEL_REGION || 'unknown',
     nodeEnv: process.env.NODE_ENV,
