@@ -26,7 +26,7 @@ export function Admin() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const { user } = useUser()
-  const [activeTab, setActiveTab] = useState<'packs' | 'generator'>('packs')
+  const [activeTab, setActiveTab] = useState<'packs' | 'generator' | 'batch'>('packs')
   const [stats, setStats] = useState({ packs: 0, icons: 0, users: 0, revenue: 0 })
   const [packs, setPacks] = useState<Pack[]>([])
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null)
@@ -204,11 +204,23 @@ export function Admin() {
         >
           AI Генератор
         </button>
+        <button
+          onClick={() => setActiveTab('batch')}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'batch'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          Пакетная генерация
+        </button>
       </div>
 
       {/* Tab content */}
       {activeTab === 'generator' ? (
         <IconGenerator />
+      ) : activeTab === 'batch' ? (
+        <BatchGenerator />
       ) : (<>
 
       {/* Sync + Fix buttons */}
@@ -1102,6 +1114,410 @@ function PackEditor({ pack, onSaved, onDeleted, onDeleteRequest, onReloadPack }:
       </div>
     </div>
     </>
+  )
+}
+
+// ─── Batch Generator Component ─────────────────────────────────────
+type BatchIconResult = {
+  nameEn: string
+  nameRu: string
+  svg: string
+  warning?: string
+  error?: string
+  saved?: boolean
+}
+
+function BatchGenerator() {
+  const { toast } = useToast()
+  const [iconNames, setIconNames] = useState('')
+  const [style, setStyle] = useState<'minimal' | 'flat'>('minimal')
+  const [fillMode, setFillMode] = useState<'outlined' | 'filled'>('outlined')
+  const [targetPackId, setTargetPackId] = useState('')
+  const [packs, setPacks] = useState<{ id: string; nameEn: string; nameRu: string }[]>([])
+  const [generating, setGenerating] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0 })
+  const [results, setResults] = useState<BatchIconResult[]>([])
+  const [savingAll, setSavingAll] = useState(false)
+
+  // Load packs list for target selection
+  useEffect(() => {
+    fetch('/api/admin/packs?limit=100')
+      .then(r => r.json())
+      .then(data => setPacks(data.packs || []))
+      .catch(() => {})
+  }, [])
+
+  // Parse icon names from textarea: one per line, supports "EN / RU" format
+  const parseIconNames = (text: string): { nameEn: string; nameRu: string }[] => {
+    return text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map(line => {
+        const parts = line.split(' / ')
+        if (parts.length >= 2) {
+          return { nameEn: parts[0].trim(), nameRu: parts[1].trim() }
+        }
+        return { nameEn: line, nameRu: line }
+      })
+  }
+
+  const startGeneration = async () => {
+    const icons = parseIconNames(iconNames)
+    if (icons.length === 0) {
+      toast({ title: 'Введите названия иконок' })
+      return
+    }
+    if (icons.length > 20) {
+      toast({ title: 'Максимум 20 иконок за раз' })
+      return
+    }
+
+    setGenerating(true)
+    setResults([])
+    setProgress({ current: 0, total: icons.length })
+
+    try {
+      const res = await fetch('/api/generate-svg-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          icons,
+          style,
+          fillMode,
+          packId: targetPackId || undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.results) {
+        setResults(data.results)
+        const success = data.results.filter((r: BatchIconResult) => r.svg && !r.error).length
+        toast({
+          title: `Готово: ${success} из ${icons.length} иконок сгенерировано`,
+          description: data.summary?.failed > 0 ? `${data.summary.failed} не удалось` : undefined,
+        })
+      } else if (data.error) {
+        toast({ title: `Ошибка: ${data.error}` })
+      }
+    } catch (err) {
+      toast({ title: 'Ошибка генерации' })
+    } finally {
+      setGenerating(false)
+      setProgress({ current: 0, total: 0 })
+    }
+  }
+
+  // Save a single generated icon to the target pack
+  const saveIconToPack = async (result: BatchIconResult, index: number) => {
+    if (!targetPackId) {
+      toast({ title: 'Выберите пак для сохранения' })
+      return
+    }
+    if (!result.svg) return
+
+    try {
+      const slug = result.nameEn
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+
+      const res = await fetch('/api/admin/icons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          packId: targetPackId,
+          slug,
+          nameRu: result.nameRu,
+          nameEn: result.nameEn,
+          keywords: result.nameEn,
+          svg: result.svg,
+          viewBox: '0 0 512 512',
+        }),
+      })
+
+      if (res.ok) {
+        setResults(prev => prev.map((r, i) => i === index ? { ...r, saved: true } : r))
+        toast({ title: `Иконка «${result.nameEn}» сохранена` })
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast({ title: `Ошибка: ${data.error || 'Не удалось сохранить'}` })
+      }
+    } catch {
+      toast({ title: 'Ошибка сохранения иконки' })
+    }
+  }
+
+  // Save all generated icons to the target pack
+  const saveAllToPack = async () => {
+    if (!targetPackId) {
+      toast({ title: 'Выберите пак для сохранения' })
+      return
+    }
+    const unsaved = results.filter(r => r.svg && !r.error && !r.saved)
+    if (unsaved.length === 0) {
+      toast({ title: 'Нет иконок для сохранения' })
+      return
+    }
+
+    setSavingAll(true)
+    let savedCount = 0
+
+    for (const result of unsaved) {
+      try {
+        const slug = result.nameEn
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+
+        const res = await fetch('/api/admin/icons', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            packId: targetPackId,
+            slug,
+            nameRu: result.nameRu,
+            nameEn: result.nameEn,
+            keywords: result.nameEn,
+            svg: result.svg,
+            viewBox: '0 0 512 512',
+          }),
+        })
+
+        if (res.ok) {
+          savedCount++
+          setResults(prev =>
+            prev.map(r => r.nameEn === result.nameEn ? { ...r, saved: true } : r)
+          )
+        }
+      } catch {
+        // skip
+      }
+    }
+
+    setSavingAll(false)
+    toast({ title: `Сохранено ${savedCount} из ${unsaved.length} иконок` })
+  }
+
+  // Regenerate a single icon
+  const regenerateIcon = async (index: number) => {
+    const result = results[index]
+    if (!result) return
+
+    setResults(prev => prev.map((r, i) => i === index ? { ...r, svg: '', error: undefined, warning: undefined } : r))
+
+    try {
+      const res = await fetch('/api/generate-svg-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          icons: [{ nameEn: result.nameEn, nameRu: result.nameRu }],
+          style,
+          fillMode,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.results?.[0]?.svg) {
+        setResults(prev => prev.map((r, i) =>
+          i === index
+            ? { ...r, svg: data.results[0].svg, warning: data.results[0].warning, error: data.results[0].error, saved: false }
+            : r
+        ))
+      } else {
+        setResults(prev => prev.map((r, i) =>
+          i === index ? { ...r, error: data.results?.[0]?.error || data.error || 'Генерация не удалась' } : r
+        ))
+      }
+    } catch {
+      setResults(prev => prev.map((r, i) => i === index ? { ...r, error: 'Ошибка генерации' } : r))
+    }
+  }
+
+  const parsedCount = parseIconNames(iconNames).length
+
+  return (
+    <div className="space-y-6">
+      {/* Input section */}
+      <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+        <h3 className="font-semibold text-slate-900">Пакетная генерация иконок</h3>
+        <p className="text-sm text-slate-500">
+          Введите названия иконок — по одному на строку. Формат: <code className="px-1 py-0.5 bg-slate-100 rounded text-xs">home / дом</code> для двуязычных названий.
+          Поддерживаются английские и русские промпты.
+        </p>
+
+        <div className="grid lg:grid-cols-[1fr_240px] gap-4">
+          {/* Textarea for icon names */}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">
+              Названия иконок
+              {parsedCount > 0 && <span className="ml-2 text-slate-400">({parsedCount} шт.)</span>}
+            </label>
+            <textarea
+              value={iconNames}
+              onChange={(e) => setIconNames(e.target.value)}
+              placeholder={`home / дом\nheart / сердце\nstar / звезда\ncamera / камера\nmail / почта\nphone / телефон\ncloud-upload / загрузка в облако\nsettings / настройки`}
+              rows={10}
+              className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+          </div>
+
+          {/* Settings */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Стиль</label>
+              <select
+                value={style}
+                onChange={(e) => setStyle(e.target.value as 'minimal' | 'flat')}
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white"
+              >
+                <option value="minimal">Minimal — тонкие линии</option>
+                <option value="flat">Flat — толстые формы</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Заливка</label>
+              <select
+                value={fillMode}
+                onChange={(e) => setFillMode(e.target.value as 'outlined' | 'filled')}
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white"
+              >
+                <option value="outlined">Outlined — контур</option>
+                <option value="filled">Filled — заливка</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Целевой пак</label>
+              <select
+                value={targetPackId}
+                onChange={(e) => setTargetPackId(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white"
+              >
+                <option value="">— Не выбран —</option>
+                {packs.map(p => (
+                  <option key={p.id} value={p.id}>{p.nameEn} / {p.nameRu}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={startGeneration}
+              disabled={generating || parsedCount === 0}
+              className="w-full px-4 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {generating ? `Генерация... (${progress.current}/${progress.total})` : `Сгенерировать ${parsedCount} иконок`}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results section */}
+      {results.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium text-slate-900">
+              Результаты
+              <span className="ml-2 text-sm font-normal text-slate-400">
+                ({results.filter(r => r.svg && !r.error).length} успешно)
+              </span>
+            </h4>
+            {targetPackId && results.some(r => r.svg && !r.error && !r.saved) && (
+              <button
+                onClick={saveAllToPack}
+                disabled={savingAll}
+                className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {savingAll ? 'Сохранение...' : 'Сохранить все в пак'}
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {results.map((result, idx) => (
+              <div
+                key={idx}
+                className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border transition-colors ${
+                  result.error
+                    ? 'border-rose-200 bg-rose-50'
+                    : result.saved
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                {/* Icon preview */}
+                <div className="w-16 h-16 flex items-center justify-center">
+                  {result.svg ? (
+                    <IconView innerSvg={result.svg} viewBox="0 0 512 512" cfg={{ color: '#0F172A', strokeWidth: 1.75 }} size={40} />
+                  ) : result.error ? (
+                    <span className="text-rose-400 text-xs text-center">Ошибка</span>
+                  ) : (
+                    <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
+                  )}
+                </div>
+
+                {/* Name */}
+                <div className="text-center">
+                  <div className="text-xs font-medium text-slate-900 truncate max-w-[80px]">{result.nameEn}</div>
+                  {result.nameRu !== result.nameEn && (
+                    <div className="text-[10px] text-slate-400 truncate max-w-[80px]">{result.nameRu}</div>
+                  )}
+                </div>
+
+                {/* Status badges */}
+                {result.warning && (
+                  <div className="text-[9px] text-amber-600 truncate max-w-[80px]" title={result.warning}>⚠️ С предупреждением</div>
+                )}
+                {result.saved && (
+                  <div className="text-[9px] text-emerald-600">✓ Сохранено</div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-1">
+                  {result.svg && !result.error && targetPackId && !result.saved && (
+                    <button
+                      onClick={() => saveIconToPack(result, idx)}
+                      className="px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                    >
+                      Сохранить
+                    </button>
+                  )}
+                  <button
+                    onClick={() => regenerateIcon(idx)}
+                    disabled={generating}
+                    className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  >
+                    🔄
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SVG code viewer for individual icons */}
+      {results.some(r => r.svg) && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+          <h4 className="font-medium text-slate-900">SVG-код сгенерированных иконок</h4>
+          <p className="text-xs text-slate-500">Можно скопировать для ручного добавления через «Вставить из SVG-кода» в редакторе пака.</p>
+          <textarea
+            readOnly
+            value={results
+              .filter(r => r.svg && !r.error)
+              .map(r => `<!-- ${r.nameEn} / ${r.nameRu} -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">\n${r.svg}\n</svg>`)
+              .join('\n\n')
+            }
+            rows={8}
+            className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs font-mono bg-slate-50 focus:outline-none"
+          />
+        </div>
+      )}
+    </div>
   )
 }
 
