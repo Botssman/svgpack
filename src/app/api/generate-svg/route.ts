@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 import { searchAllPrimitives, getAllPrimitives } from '@/lib/primitive-library'
 
 // ─── Few-shot examples by style + fillMode ──────────────────────────
@@ -321,7 +321,7 @@ ${libraryExamples}${examples}
 
 Now create the icon. Output ONLY the SVG elements, nothing else:`
 
-    const zai = await ZAI.create()
+    const zai = await getZAI()
 
     // Try up to 3 times with validation
     const maxAttempts = 3

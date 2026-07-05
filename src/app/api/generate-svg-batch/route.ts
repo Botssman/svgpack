@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
+import { getZAI } from '@/lib/zai'
 import { searchAllPrimitives } from '@/lib/primitive-library'
 
 // ─── System prompt (shared with single generation) ──────────────────
@@ -255,7 +255,8 @@ function translatePrompt(prompt: string): { enPrompt: string; originalPrompt: st
 
 // ─── Generate single icon ───────────────────────────────────────────
 async function generateSingleIcon(
-  zai: Awaited<ReturnType<typeof ZAI.create>>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  zai: any,
   nameEn: string,
   nameRu: string,
   style: string,
@@ -375,7 +376,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Maximum 20 icons per batch' }, { status: 400 })
     }
 
-    const zai = await ZAI.create()
+    const zai = await getZAI()
     const results: { nameEn: string; nameRu: string; svg: string; warning?: string; error?: string }[] = []
 
     // Generate icons sequentially to avoid rate limits
