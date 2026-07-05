@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI } from '@/lib/zai'
+import { zaiChatCompletion } from '@/lib/zai-cli'
 import { searchAllPrimitives, getAllPrimitives } from '@/lib/primitive-library'
 
 // ─── Few-shot examples by style + fillMode ──────────────────────────
@@ -321,8 +321,6 @@ ${libraryExamples}${examples}
 
 Now create the icon. Output ONLY the SVG elements, nothing else:`
 
-    const zai = await getZAI()
-
     // Try up to 3 times with validation
     const maxAttempts = 3
     let lastError = ''
@@ -341,12 +339,17 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
             { role: 'user' as const, content: `Your previous output was invalid: ${lastError}. Fix it and output ONLY valid SVG elements using currentColor. No <svg> tags, no hex colors, no text, no background, no <g> tags.` },
           ]
 
-      const completion = await zai.chat.completions.create({
-        messages,
-        thinking: { type: 'disabled' },
-      })
-
-      let svgContent = completion.choices?.[0]?.message?.content?.trim() || ''
+      let svgContent = ''
+      try {
+        const result = await zaiChatCompletion(messages)
+        svgContent = result.content.trim()
+      } catch (apiErr) {
+        const apiErrMsg = apiErr instanceof Error ? apiErr.message : String(apiErr)
+        lastError = `API error: ${apiErrMsg}`
+        lastSvg = ''
+        console.warn(`[generate-svg] Attempt ${attempt + 1} API error: ${apiErrMsg}`)
+        continue
+      }
 
       // Clean up the output
       svgContent = cleanSvgContent(svgContent)
@@ -368,15 +371,18 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
     // All attempts failed — try a very simple fallback
     console.error(`[generate-svg] All ${maxAttempts} attempts failed. Last error: ${lastError}`)
 
-    const fallbackCompletion = await zai.chat.completions.create({
-      messages: [
+    let fallbackSvg = ''
+    try {
+      const fallbackResult = await zaiChatCompletion([
         { role: 'system', content: 'You create simple SVG icons. Use only <path>, <circle>, <rect> elements. Use currentColor for all colors. No <svg> tags. No background. No text. No <g> tags. No hex colors.' },
         { role: 'user', content: `Simple ${isFilled ? 'filled' : 'outlined'} SVG icon of "${prompt.trim()}". Use currentColor. Only SVG elements, no wrapper. ${isFilled ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="28"'}.` },
-      ],
-      thinking: { type: 'disabled' },
-    })
+      ])
+      fallbackSvg = fallbackResult.content.trim()
+    } catch (fbErr) {
+      const fbErrMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
+      return NextResponse.json({ error: `SVG generation failed: ${fbErrMsg}` }, { status: 500 })
+    }
 
-    let fallbackSvg = fallbackCompletion.choices?.[0]?.message?.content?.trim() || ''
     fallbackSvg = cleanSvgContent(fallbackSvg)
     fallbackSvg = autoFixSvg(fallbackSvg, fillMode)
 
@@ -387,20 +393,9 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
     return NextResponse.json({ error: `SVG generation failed after ${maxAttempts} attempts: ${lastError}` }, { status: 500 })
   } catch (error) {
     console.error('[generate-svg] Error:', error)
-    const message = error instanceof Error ? error.message : 'SVG generation failed'
-    if (message.includes('Z AI config missing') || message.includes('Configuration file not found')) {
-      return NextResponse.json(
-        {
-          error: message,
-          hint: 'On Vercel: add Z_AI_BASE_URL and Z_AI_API_KEY in Project Settings → Environment Variables, then redeploy.',
-          envVarsPresent: {
-            Z_AI_BASE_URL: !!process.env.Z_AI_BASE_URL,
-            Z_AI_API_KEY: !!process.env.Z_AI_API_KEY,
-          },
-        },
-        { status: 500 }
-      )
-    }
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'SVG generation failed' },
+      { status: 500 }
+    )
   }
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getZAI } from '@/lib/zai'
+import { zaiChatCompletion } from '@/lib/zai-cli'
 import { searchAllPrimitives } from '@/lib/primitive-library'
 
 // ─── System prompt (shared with single generation) ──────────────────
@@ -255,8 +255,6 @@ function translatePrompt(prompt: string): { enPrompt: string; originalPrompt: st
 
 // ─── Generate single icon ───────────────────────────────────────────
 async function generateSingleIcon(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  zai: any,
   nameEn: string,
   nameRu: string,
   style: string,
@@ -318,12 +316,10 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
           { role: 'user' as const, content: `Your previous output was invalid: ${lastError}. Fix it and output ONLY valid SVG elements using currentColor. No <svg> tags, no hex colors, no text, no background, no <g> tags.` },
         ]
 
-    let completion: any
+    let svgContent = ''
     try {
-      completion = await zai.chat.completions.create({
-        messages,
-        thinking: { type: 'disabled' },
-      })
+      const result = await zaiChatCompletion(messages)
+      svgContent = result.content.trim()
     } catch (apiErr) {
       const apiErrMsg = apiErr instanceof Error ? apiErr.message : String(apiErr)
       console.error(`[generate-svg-batch] "${nameEn}" API call failed (attempt ${attempt + 1}):`, apiErrMsg)
@@ -331,16 +327,6 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
       lastSvg = ''
       continue
     }
-
-    // Log API response structure for debugging
-    if (!completion?.choices?.[0]?.message?.content) {
-      console.error(`[generate-svg-batch] "${nameEn}" unexpected API response:`, JSON.stringify(completion).substring(0, 500))
-      lastError = `Unexpected API response: ${JSON.stringify(completion).substring(0, 200)}`
-      lastSvg = ''
-      continue
-    }
-
-    let svgContent = completion.choices[0].message.content.trim()
     svgContent = cleanSvgContent(svgContent)
     svgContent = autoFixSvg(svgContent, fillMode)
 
@@ -357,22 +343,18 @@ Now create the icon. Output ONLY the SVG elements, nothing else:`
   // Fallback: simplified prompt
   console.error(`[generate-svg-batch] "${nameEn}" all attempts failed, trying fallback`)
 
-  let fallbackCompletion: any
+  let fallbackSvg = ''
   try {
-    fallbackCompletion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'You create simple SVG icons. Use only <path>, <circle>, <rect> elements. Use currentColor for all colors. No <svg> tags. No background. No text. No <g> tags. No hex colors.' },
-        { role: 'user', content: `Simple ${isFilled ? 'filled' : 'outlined'} SVG icon of "${enPrompt}". Use currentColor. Only SVG elements, no wrapper. ${isFilled ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="28"'}.` },
-      ],
-      thinking: { type: 'disabled' },
-    })
+    const fallbackResult = await zaiChatCompletion([
+      { role: 'system', content: 'You create simple SVG icons. Use only <path>, <circle>, <rect> elements. Use currentColor for all colors. No <svg> tags. No background. No text. No <g> tags. No hex colors.' },
+      { role: 'user', content: `Simple ${isFilled ? 'filled' : 'outlined'} SVG icon of "${enPrompt}". Use currentColor. Only SVG elements, no wrapper. ${isFilled ? 'fill="currentColor" stroke="none"' : 'fill="none" stroke="currentColor" stroke-width="28"'}.` },
+    ])
+    fallbackSvg = fallbackResult.content.trim()
   } catch (fbErr) {
     const fbErrMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
     console.error(`[generate-svg-batch] "${nameEn}" fallback API call failed:`, fbErrMsg)
     return { nameEn, nameRu, svg: '', error: `API error (fallback): ${fbErrMsg}` }
   }
-
-  let fallbackSvg = fallbackCompletion.choices?.[0]?.message?.content?.trim() || ''
   fallbackSvg = cleanSvgContent(fallbackSvg)
   fallbackSvg = autoFixSvg(fallbackSvg, fillMode)
 
@@ -400,7 +382,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Maximum 20 icons per batch' }, { status: 400 })
     }
 
-    const zai = await getZAI()
     const results: { nameEn: string; nameRu: string; svg: string; warning?: string; error?: string }[] = []
 
     // Generate icons sequentially to avoid rate limits
@@ -409,7 +390,7 @@ export async function POST(req: NextRequest) {
       console.log(`[generate-svg-batch] Generating ${i + 1}/${iconList.length}: "${icon.nameEn}"`)
 
       try {
-        const result = await generateSingleIcon(zai, icon.nameEn, icon.nameRu || icon.nameEn, style, fillMode)
+        const result = await generateSingleIcon(icon.nameEn, icon.nameRu || icon.nameEn, style, fillMode)
         results.push(result)
       } catch (err) {
         console.error(`[generate-svg-batch] Error generating "${icon.nameEn}":`, err)
@@ -438,21 +419,9 @@ export async function POST(req: NextRequest) {
     })
   } catch (error) {
     console.error('[generate-svg-batch] Error:', error)
-    const message = error instanceof Error ? error.message : 'Batch generation failed'
-    // If Z AI config is missing, return helpful error with env var status
-    if (message.includes('Z AI config missing') || message.includes('Configuration file not found')) {
-      return NextResponse.json(
-        {
-          error: message,
-          hint: 'On Vercel: add Z_AI_BASE_URL and Z_AI_API_KEY in Project Settings → Environment Variables, then redeploy.',
-          envVarsPresent: {
-            Z_AI_BASE_URL: !!process.env.Z_AI_BASE_URL,
-            Z_AI_API_KEY: !!process.env.Z_AI_API_KEY,
-          },
-        },
-        { status: 500 }
-      )
-    }
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Batch generation failed' },
+      { status: 500 }
+    )
   }
 }
