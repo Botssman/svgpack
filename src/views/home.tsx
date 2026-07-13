@@ -270,7 +270,7 @@ export function Home({ nav }: { nav: (v: View) => void }) {
           </div>
 
           <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            <Feature icon={<Icon.Browser />} title={t.features.f1Title} desc={t.features.f1Desc} />
+            <Feature icon={<Icon.Browser />} title={t.features.f1Title} desc={lang === 'ru' ? `${totalIcons} иконок в ${totalPacks} тематических паков: языки, фреймворки, инструменты, концепты. Скачивайте отдельные SVG или zip-архивом.` : `${totalIcons} icons in ${totalPacks} themed packs: languages, frameworks, tools, concepts. Download individual SVGs or as a zip archive.`} />
             <Feature icon={<Icon.Palette />} title={t.features.f2Title} desc={t.features.f2Desc} />
             <Feature icon={<Icon.Card />} title={t.features.f3Title} desc={t.features.f3Desc} />
             <Feature icon={<Icon.Component />} title={t.features.f4Title} desc={t.features.f4Desc} />
