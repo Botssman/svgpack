@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 // Если slug занят, автоматически добавляет суффикс -2, -3 и т.д.
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { nameRu, nameEn, descRu, descEn, slug, category, style, tags, priceCredits, isFree } = body as any
+  const { nameRu, nameEn, descRu, descEn, slug, category, style, tags, priceCredits, isFree, icons } = body as any
   if (!nameRu || !nameEn) {
     return NextResponse.json({ error: 'nameRu и nameEn обязательны' }, { status: 400 })
   }
@@ -39,7 +39,20 @@ export async function POST(req: NextRequest) {
       nameRu, nameEn, descRu: descRu || '', descEn: descEn || '',
       slug: finalSlug, category: category || 'concepts', style: style || 'outline',
       tags: tags || '', priceCredits: priceCredits ?? 10, isFree: isFree ?? true,
+      ...(Array.isArray(icons) && icons.length > 0 ? {
+        icons: {
+          create: icons.map((ic: any) => ({
+            slug: ic.slug,
+            nameRu: ic.nameRu || ic.nameEn || ic.slug,
+            nameEn: ic.nameEn || ic.slug,
+            keywords: ic.keywords || '',
+            svg: ic.svg,
+            viewBox: ic.viewBox || '0 0 24 24',
+          })),
+        },
+      } : {}),
     },
+    include: { _count: { select: { icons: true } } },
   })
   return NextResponse.json({ pack })
 }

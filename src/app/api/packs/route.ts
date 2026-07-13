@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       ]
     }
 
-    const [packs, total] = await Promise.all([
+    const [packs, total, iconCountRows] = await Promise.all([
       db.pack.findMany({
         where,
         include: {
@@ -69,11 +69,19 @@ export async function GET(req: NextRequest) {
         take: limit,
       }),
       db.pack.count({ where }),
+      // Total icons across ALL matching packs (not just current page)
+      db.pack.findMany({
+        where,
+        select: { _count: { select: { icons: true } } },
+      }),
     ])
+
+    const totalIcons = iconCountRows.reduce((sum, p) => sum + p._count.icons, 0)
 
     return NextResponse.json({
       packs,
       total,
+      totalIcons,
       page,
       limit,
       totalPages: Math.ceil(total / limit),

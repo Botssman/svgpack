@@ -33,6 +33,7 @@ export function Catalog() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [totalIcons, setTotalIcons] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
@@ -105,6 +106,7 @@ export function Catalog() {
         setPacks(d.packs || [])
         setTotal(d.total || 0)
         setTotalPages(d.totalPages || 1)
+        setTotalIcons(d.totalIcons || 0)
         setLoading(false)
       })
       .catch(e => {
@@ -115,7 +117,7 @@ export function Catalog() {
     return () => { cancelled = true }
   }, [category, q, style, isFree, page, limit, retryCount])
 
-  const totalIcons = useMemo(() => packs.reduce((s, p) => s + p.icons.length, 0), [packs])
+
 
   const categories = [
     { id: 'all', label: t.catalog.filterAll },
