@@ -1,27 +1,25 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/hooks/use-toast'
 import { CATEGORIES } from '@/lib/categories'
 
 /**
- * Admin Import Panel — three sub-tabs:
+ * Admin Import Panel — two sub-tabs:
  * 1. ZIP upload (existing upload-icons endpoint)
- * 2. Figma import (via Figma API)
- * 3. Tabler import (re-import from local Tabler clone)
+ * 2. Tabler import (re-import from local Tabler clone)
+ *
+ * Figma import is now a separate top-level admin tab.
  */
 export function ImportPanel() {
   const { lang } = useI18n()
   const { toast } = useToast()
-  const [subTab, setSubTab] = useState<'zip' | 'figma' | 'tabler'>('figma')
+  const [subTab, setSubTab] = useState<'zip' | 'tabler'>('zip')
 
   return (
     <div className="space-y-6">
       {/* Sub-tab switcher */}
       <div className="flex gap-1 border-b border-slate-200">
-        <SubTabBtn active={subTab === 'figma'} onClick={() => setSubTab('figma')}>
-          {lang === 'ru' ? '🎨 Figma' : '🎨 Figma'}
-        </SubTabBtn>
         <SubTabBtn active={subTab === 'zip'} onClick={() => setSubTab('zip')}>
           {lang === 'ru' ? '📦 ZIP-архив' : '📦 ZIP Archive'}
         </SubTabBtn>
@@ -30,7 +28,6 @@ export function ImportPanel() {
         </SubTabBtn>
       </div>
 
-      {subTab === 'figma' && <FigmaImport />}
       {subTab === 'zip' && <ZipImport />}
       {subTab === 'tabler' && <TablerImport />}
     </div>
@@ -50,228 +47,6 @@ function SubTabBtn({ active, onClick, children }: { active: boolean; onClick: ()
     >
       {children}
     </button>
-  )
-}
-
-// ─── Figma Import ──────────────────────────────────────
-function FigmaImport() {
-  const { lang } = useI18n()
-  const { toast } = useToast()
-  const [figmaToken, setFigmaToken] = useState('')
-  const [fileUrl, setFileUrl] = useState('')
-  const [category, setCategory] = useState('system')
-  const [style, setStyle] = useState('outline')
-  const [packNameRu, setPackNameRu] = useState('')
-  const [packNameEn, setPackNameEn] = useState('')
-  const [importing, setImporting] = useState(false)
-  const [result, setResult] = useState<any>(null)
-
-  const extractFileKey = (url: string): string => {
-    // https://www.figma.com/file/ABC123/My-File → ABC123
-    // https://www.figma.com/design/ABC123/My-File → ABC123
-    const match = url.match(/figma\.com\/(?:file|design|proto)\/([A-Za-z0-9]+)/)
-    return match ? match[1] : url.trim()
-  }
-
-  const handleImport = useCallback(async () => {
-    const fileKey = extractFileKey(fileUrl)
-    if (!figmaToken || !fileKey) {
-      toast({ title: lang === 'ru' ? 'Укажите Token и URL файла' : 'Provide Token and File URL' })
-      return
-    }
-
-    setImporting(true)
-    setResult(null)
-
-    try {
-      const res = await fetch('/api/admin/figma-import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          figmaToken,
-          fileKey,
-          category,
-          style,
-          packNameRu: packNameRu || undefined,
-          packNameEn: packNameEn || undefined,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok && data.ok) {
-        toast({ title: lang === 'ru' ? `Импортировано: ${data.totalPacks} пак(ов), ${data.totalIcons} иконок` : `Imported: ${data.totalPacks} pack(s), ${data.totalIcons} icons` })
-        setResult(data)
-      } else {
-        toast({ title: data.error || 'Ошибка импорта' })
-        setResult(data)
-      }
-    } catch (e: any) {
-      toast({ title: e?.message || 'Сетевая ошибка' })
-    } finally {
-      setImporting(false)
-    }
-  }, [figmaToken, fileUrl, category, style, packNameRu, packNameEn, lang, toast])
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
-      <div>
-        <h3 className="text-lg font-semibold text-slate-900">
-          {lang === 'ru' ? 'Импорт из Figma' : 'Import from Figma'}
-        </h3>
-        <p className="text-sm text-slate-500 mt-1">
-          {lang === 'ru'
-            ? 'Импортируйте иконки напрямую из Figma-файла. Укажите Personal Access Token и URL файла.'
-            : 'Import icons directly from a Figma file. Provide your Personal Access Token and file URL.'}
-        </p>
-      </div>
-
-      {/* Figma Token */}
-      <div>
-        <label className="block text-xs font-medium text-slate-700 mb-1">
-          Figma Personal Access Token
-        </label>
-        <input
-          type="password"
-          value={figmaToken}
-          onChange={e => setFigmaToken(e.target.value)}
-          placeholder="figd_xxxxxxxxxxxxxxxxxxxxx"
-          className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm font-mono focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-        />
-        <p className="mt-1 text-xs text-slate-400">
-          {lang === 'ru' ? 'Настройки → Personal access tokens → Generate new token' : 'Settings → Personal access tokens → Generate new token'}
-        </p>
-      </div>
-
-      {/* File URL */}
-      <div>
-        <label className="block text-xs font-medium text-slate-700 mb-1">
-          {lang === 'ru' ? 'URL файла Figma' : 'Figma File URL'}
-        </label>
-        <input
-          type="url"
-          value={fileUrl}
-          onChange={e => setFileUrl(e.target.value)}
-          placeholder="https://www.figma.com/file/ABC123/My-Icon-Pack"
-          className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-        />
-      </div>
-
-      {/* Category + Style row */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">
-            {lang === 'ru' ? 'Категория' : 'Category'}
-          </label>
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white"
-          >
-            {CATEGORIES.map(c => (
-              <option key={c.slug} value={c.slug}>
-                {lang === 'ru' ? c.nameRu : c.nameEn}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">
-            {lang === 'ru' ? 'Стиль' : 'Style'}
-          </label>
-          <select
-            value={style}
-            onChange={e => setStyle(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white"
-          >
-            <option value="outline">Outline</option>
-            <option value="filled">Filled</option>
-            <option value="duotone">Duotone</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Pack names (optional) */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">
-            {lang === 'ru' ? 'Название пака (RU)' : 'Pack Name (RU)'} — <span className="text-slate-400">{lang === 'ru' ? 'необязательно' : 'optional'}</span>
-          </label>
-          <input
-            type="text"
-            value={packNameRu}
-            onChange={e => setPackNameRu(e.target.value)}
-            placeholder={lang === 'ru' ? 'Авто из имени файла' : 'Auto from file name'}
-            className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">
-            {lang === 'ru' ? 'Название пака (EN)' : 'Pack Name (EN)'} — <span className="text-slate-400">{lang === 'ru' ? 'необязательно' : 'optional'}</span>
-          </label>
-          <input
-            type="text"
-            value={packNameEn}
-            onChange={e => setPackNameEn(e.target.value)}
-            placeholder={lang === 'ru' ? 'Авто из имени файла' : 'Auto from file name'}
-            className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400"
-          />
-        </div>
-      </div>
-
-      {/* Import button */}
-      <button
-        onClick={handleImport}
-        disabled={importing || !figmaToken || !fileUrl}
-        className="px-5 py-2.5 rounded-lg bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {importing
-          ? (lang === 'ru' ? 'Импортирование...' : 'Importing...')
-          : (lang === 'ru' ? '🎨 Импортировать из Figma' : '🎨 Import from Figma')
-        }
-      </button>
-
-      {/* Results */}
-      {result && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
-          {result.ok ? (
-            <>
-              <div className="text-sm font-medium text-emerald-700">
-                {lang === 'ru' ? 'Импорт завершён!' : 'Import complete!'}
-              </div>
-              <div className="text-sm text-slate-600">
-                {lang === 'ru' ? 'Файл' : 'File'}: {result.fileName}
-              </div>
-              <div className="text-sm text-slate-600">
-                {lang === 'ru' ? 'Создано паков' : 'Packs created'}: {result.totalPacks} · {lang === 'ru' ? 'иконок' : 'icons'}: {result.totalIcons}
-              </div>
-            </>
-          ) : (
-            <div className="text-sm text-rose-600">{result.error}</div>
-          )}
-          {result.results && (
-            <div className="text-xs text-slate-500 font-mono space-y-0.5 max-h-40 overflow-y-auto">
-              {result.results.map((r: string, i: number) => (
-                <div key={i}>{r}</div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Help section */}
-      <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
-        <h4 className="text-sm font-medium text-blue-800 mb-2">
-          {lang === 'ru' ? '💡 Как получить Figma Token' : '💡 How to get Figma Token'}
-        </h4>
-        <ol className="text-xs text-blue-700 space-y-1 list-decimal pl-4">
-          <li>{lang === 'ru' ? 'Откройте Figma → Settings → Personal access tokens' : 'Open Figma → Settings → Personal access tokens'}</li>
-          <li>{lang === 'ru' ? 'Нажмите "Generate new token"' : 'Click "Generate new token"'}</li>
-          <li>{lang === 'ru' ? 'Скопируйте токен (он показывается только один раз!)' : 'Copy the token (it\'s shown only once!)'}</li>
-          <li>{lang === 'ru' ? 'Вставьте URL файла Figma (из адресной строки)' : 'Paste the Figma file URL (from address bar)'}</li>
-        </ol>
-      </div>
-    </div>
   )
 }
 

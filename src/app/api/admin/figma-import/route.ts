@@ -2,55 +2,259 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { CATEGORIES } from '@/lib/categories'
 
+// ── Shared types ──────────────────────────────────────
+interface FigmaNode {
+  id: string
+  name: string
+  type: string
+  children?: FigmaNode[]
+}
+
+interface PageInfo {
+  id: string
+  name: string
+  iconCount: number
+  frames: FrameInfo[]
+  suggestedCategory: string
+}
+
+interface FrameInfo {
+  id: string
+  name: string
+  iconCount: number
+}
+
+/**
+ * GET /api/admin/figma-import?figmaToken=...&fileKey=...
+ *
+ * Preview the structure of a Figma file before importing.
+ * Returns: pages with icon counts and suggested categories.
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url)
+    const figmaToken = searchParams.get('figmaToken')
+    const fileKey = searchParams.get('fileKey')
+
+    if (!figmaToken || !fileKey) {
+      return NextResponse.json({ error: 'figmaToken и fileKey обязательны' }, { status: 400 })
+    }
+
+    // Fetch Figma file document
+    console.log(`[figma-import/preview] Fetching file: ${fileKey}`)
+    const fileRes = await fetch(`https://api.figma.com/v1/files/${fileKey}`, {
+      headers: { 'X-Figma-Token': figmaToken },
+    })
+
+    if (!fileRes.ok) {
+      if (fileRes.status === 403) {
+        return NextResponse.json({ error: 'Неверный Figma Token или нет доступа к файлу' }, { status: 403 })
+      }
+      if (fileRes.status === 404) {
+        return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
+      }
+      return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
+    }
+
+    const fileData = await fileRes.json()
+    const document = fileData.document
+    const fileName = fileData.name || 'Figma Import'
+
+    // Walk the tree to count icons per page and per frame
+    function countIcons(nodes: FigmaNode[]): { total: number; frameDetails: FrameInfo[] } {
+      let total = 0
+      const frameDetails: FrameInfo[] = []
+
+      function walk(nodes: FigmaNode[]) {
+        for (const node of nodes) {
+          if (node.type === 'COMPONENT') {
+            total++
+          } else if (node.type === 'COMPONENT_SET' && node.children) {
+            // Count each variant as a separate icon
+            const variantCount = node.children.filter(c => c.type === 'COMPONENT').length
+            total += variantCount
+          } else if (node.type === 'FRAME' && node.children) {
+            // Check if this frame contains components (it's a category frame)
+            const componentCount = node.children.filter(c =>
+              c.type === 'COMPONENT' || c.type === 'COMPONENT_SET'
+            ).length
+
+            if (componentCount > 0) {
+              // This frame is a grouping/category frame
+              let iconCount = 0
+              for (const child of node.children) {
+                if (child.type === 'COMPONENT') iconCount++
+                else if (child.type === 'COMPONENT_SET' && child.children) {
+                  iconCount += child.children.filter(c => c.type === 'COMPONENT').length
+                }
+              }
+              frameDetails.push({ id: node.id, name: node.name, iconCount })
+              total += iconCount
+            } else {
+              // Recurse deeper
+              walk(node.children)
+            }
+          } else if (node.type === 'GROUP' && node.children) {
+            walk(node.children)
+          }
+        }
+      }
+
+      walk(nodes)
+      return { total, frameDetails }
+    }
+
+    // Build page info with category suggestions
+    const categorySlugs = CATEGORIES.map(c => c.slug)
+    const categoryKeywords: Record<string, string[]> = {
+      arrows: ['arrow', 'direction', 'navigate', 'chevron', 'navigation'],
+      brands: ['brand', 'logo', 'social', 'company', 'google', 'apple', 'facebook'],
+      buildings: ['building', 'city', 'house', 'architecture', 'office', 'factory'],
+      communication: ['message', 'chat', 'mail', 'phone', 'call', 'email'],
+      concepts: ['concept', 'pattern', 'api', 'database', 'server', 'cloud', 'microservice'],
+      design: ['design', 'color', 'palette', 'pen', 'brush', 'camera', 'layer'],
+      devices: ['device', 'phone', 'computer', 'laptop', 'tablet', 'monitor', 'watch'],
+      document: ['document', 'file', 'folder', 'paper', 'certificate', 'report'],
+      ecommerce: ['shop', 'cart', 'store', 'payment', 'price', 'discount', 'money'],
+      education: ['education', 'school', 'book', 'learn', 'teach', 'student', 'graduate'],
+      food: ['food', 'drink', 'restaurant', 'kitchen', 'cook', 'meal'],
+      frameworks: ['framework', 'react', 'vue', 'angular', 'svelte', 'next'],
+      games: ['game', 'play', 'controller', 'dice', 'chess', 'puzzle'],
+      health: ['health', 'medical', 'heart', 'doctor', 'hospital', 'medicine'],
+      languages: ['language', 'code', 'programming', 'javascript', 'python', 'html'],
+      letters: ['letter', 'alphabet', 'number', 'symbol', 'character', 'font'],
+      map: ['map', 'location', 'pin', 'compass', 'gps', 'route'],
+      media: ['media', 'music', 'play', 'video', 'microphone', 'headphone', 'record'],
+      mood: ['mood', 'emoji', 'smile', 'face', 'emotion', 'feeling'],
+      nature: ['nature', 'tree', 'leaf', 'flower', 'animal', 'weather', 'sun'],
+      science: ['science', 'math', 'chart', 'graph', 'formula', 'atom', 'lab'],
+      shapes: ['shape', 'circle', 'square', 'triangle', 'polygon', 'star'],
+      sport: ['sport', 'football', 'basketball', 'tennis', 'run', 'swim', 'trophy'],
+      system: ['system', 'setting', 'filter', 'notification', 'menu', 'button', 'toggle', 'ui'],
+      tools: ['tool', 'dev', 'git', 'github', 'docker', 'terminal', 'code', 'debug'],
+      vehicles: ['vehicle', 'car', 'bike', 'plane', 'ship', 'bus', 'train'],
+    }
+
+    function suggestCategory(pageName: string, frameNames: string[]): string {
+      const combined = (pageName + ' ' + frameNames.join(' ')).toLowerCase()
+
+      // Score each category by keyword matches
+      let bestCategory = 'system' // default
+      let bestScore = 0
+
+      for (const [catSlug, keywords] of Object.entries(categoryKeywords)) {
+        let score = 0
+        for (const kw of keywords) {
+          if (combined.includes(kw)) score++
+        }
+        if (score > bestScore) {
+          bestScore = score
+          bestCategory = catSlug
+        }
+      }
+
+      return bestCategory
+    }
+
+    const pages: PageInfo[] = []
+    const canvasPages = document.children || []
+
+    for (const page of canvasPages) {
+      if (page.type !== 'CANVAS') continue
+      if (!page.children || page.children.length === 0) continue
+
+      const { total, frameDetails } = countIcons(page.children)
+      if (total === 0) continue
+
+      const suggestedCategory = suggestCategory(page.name, frameDetails.map(f => f.name))
+
+      pages.push({
+        id: page.id,
+        name: page.name,
+        iconCount: total,
+        frames: frameDetails,
+        suggestedCategory,
+      })
+    }
+
+    const totalIcons = pages.reduce((s, p) => s + p.iconCount, 0)
+
+    return NextResponse.json({
+      ok: true,
+      fileName,
+      totalIcons,
+      totalPages: pages.length,
+      pages,
+      categories: CATEGORIES.map(c => ({
+        slug: c.slug,
+        nameRu: c.nameRu,
+        nameEn: c.nameEn,
+        icon: c.icon,
+      })),
+    })
+  } catch (e: any) {
+    console.error('[/api/admin/figma-import GET] ERROR:', e?.message || e)
+    return NextResponse.json(
+      { error: e?.message || 'Internal Server Error' },
+      { status: 500 },
+    )
+  }
+}
+
 /**
  * POST /api/admin/figma-import
  *
  * Import icons from a Figma file via the Figma API.
  *
- * Body: {
- *   figmaToken: string,      // Figma Personal Access Token
- *   fileKey: string,         // Figma file key (from URL)
- *   category: string,        // Target category slug
- *   style: string,           // "outline" | "filled" | "duotone"
- *   packNameRu?: string,     // Override pack name (auto-generated if omitted)
- *   packNameEn?: string,     // Override pack name
- *   pageNames?: string[],    // Only import from these Figma pages (all if omitted)
- *   frameFilter?: string,    // Only import frames/components matching this regex
- * }
+ * Two modes:
  *
- * Steps:
- * 1. Fetch Figma file document → list pages, frames, components
- * 2. For each page/frame, collect node IDs
- * 3. Batch-fetch SVG exports via /v1/images/{fileKey}?ids=...&format=svg
- * 4. Group by page → one pack per page (or single pack if no pages)
- * 5. Create packs with icons in DB
+ * A) Simple (single category for all):
+ *   { figmaToken, fileKey, category, style, packNameRu?, packNameEn? }
+ *
+ * B) Advanced (per-page categories — auto-create packs by page):
+ *   { figmaToken, fileKey, style, pages: [{ name, category, enabled }] }
+ *
+ * When `pages` array is provided, each page becomes its own pack
+ * with its own category assignment.
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { figmaToken, fileKey, category, style, packNameRu, packNameEn, pageNames, frameFilter } = body as {
+    const { figmaToken, fileKey, category, style, packNameRu, packNameEn, pageNames, frameFilter, pages: pageConfig } = body as {
       figmaToken: string
       fileKey: string
-      category: string
-      style: string
+      category?: string
+      style?: string
       packNameRu?: string
       packNameEn?: string
       pageNames?: string[]
       frameFilter?: string
+      pages?: Array<{ name: string; category: string; enabled: boolean }>
     }
 
     if (!figmaToken || !fileKey) {
       return NextResponse.json({ error: 'figmaToken и fileKey обязательны' }, { status: 400 })
     }
 
-    if (!category) {
-      return NextResponse.json({ error: 'category обязательна' }, { status: 400 })
+    // Validate: either single category or per-page config
+    const advancedMode = Array.isArray(pageConfig) && pageConfig.length > 0
+    if (!advancedMode && !category) {
+      return NextResponse.json({ error: 'Укажите category или массив pages с категориями' }, { status: 400 })
     }
 
-    // Validate category exists
-    const validCategory = CATEGORIES.find(c => c.slug === category)
-    if (!validCategory) {
-      return NextResponse.json({ error: `Неизвестная категория: ${category}` }, { status: 400 })
+    if (category) {
+      const validCategory = CATEGORIES.find(c => c.slug === category)
+      if (!validCategory) {
+        return NextResponse.json({ error: `Неизвестная категория: ${category}` }, { status: 400 })
+      }
+    }
+
+    if (advancedMode) {
+      for (const pc of pageConfig) {
+        if (!CATEGORIES.find(c => c.slug === pc.category)) {
+          return NextResponse.json({ error: `Неизвестная категория: ${pc.category} для страницы "${pc.name}"` }, { status: 400 })
+        }
+      }
     }
 
     // 1. Fetch Figma file document
@@ -78,28 +282,19 @@ export async function POST(req: NextRequest) {
     console.log(`[figma-import] File: "${fileName}", pages: ${document.children?.length}`)
 
     // 2. Walk the document tree to find all components/frames with icons
-    // Each top-level page becomes a potential pack
-    interface FigmaNode {
-      id: string
-      name: string
-      type: string
-      children?: FigmaNode[]
-    }
-
     const packsToCreate: Array<{
       pageName: string
       nodeIds: string[]
       nodeNames: Map<string, string>
+      packCategory: string
     }> = []
 
     const filterRegex = frameFilter ? new RegExp(frameFilter, 'i') : null
 
     function collectIconNodes(nodes: FigmaNode[], target: Map<string, string>) {
       for (const node of nodes) {
-        // Components and frames that look like individual icons
         if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
           if (filterRegex && !filterRegex.test(node.name)) continue
-          // Skip component sets — we'll pick variant children
           if (node.type === 'COMPONENT_SET' && node.children) {
             for (const child of node.children) {
               if (child.type === 'COMPONENT') {
@@ -111,17 +306,13 @@ export async function POST(req: NextRequest) {
             target.set(node.id, node.name)
           }
         } else if (node.type === 'FRAME' && node.children) {
-          // If a frame has only small children (likely icons), include it directly
-          // Otherwise recurse into it
           const hasComponents = node.children.some(c => c.type === 'COMPONENT' || c.type === 'COMPONENT_SET')
           if (hasComponents) {
             collectIconNodes(node.children, target)
           } else if (node.children.length <= 1) {
-            // Single-child frame might be an icon itself
             if (filterRegex && !filterRegex.test(node.name)) continue
             target.set(node.id, node.name)
           } else {
-            // Frame with multiple children — each child could be an icon
             collectIconNodes(node.children, target)
           }
         } else if (node.type === 'GROUP' && node.children) {
@@ -130,10 +321,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const pages = document.children || []
-    for (const page of pages) {
+    // Build a set of enabled page names (for filtering)
+    const enabledPageNames = advancedMode
+      ? new Set(pageConfig.filter(p => p.enabled).map(p => p.name))
+      : (pageNames ? new Set(pageNames) : null)
+
+    const canvasPages = document.children || []
+    for (const page of canvasPages) {
       if (page.type !== 'CANVAS') continue
-      if (pageNames && pageNames.length > 0 && !pageNames.includes(page.name)) continue
+
+      // Filter by enabled pages
+      if (enabledPageNames && !enabledPageNames.has(page.name)) continue
 
       const nodeMap = new Map<string, string>()
       if (page.children) {
@@ -141,10 +339,18 @@ export async function POST(req: NextRequest) {
       }
 
       if (nodeMap.size > 0) {
+        // Determine category for this page
+        let packCategory = category || 'system'
+        if (advancedMode) {
+          const pc = pageConfig.find(p => p.name === page.name)
+          packCategory = pc?.category || 'system'
+        }
+
         packsToCreate.push({
           pageName: page.name,
           nodeIds: Array.from(nodeMap.keys()),
           nodeNames: nodeMap,
+          packCategory,
         })
       }
     }
@@ -159,7 +365,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Batch-fetch SVG exports (max 200 IDs per request)
     const SVG_BATCH_SIZE = 200
-    const allSvgMap = new Map<string, string>() // nodeId → SVG string
+    const allSvgMap = new Map<string, string>()
 
     for (const pack of packsToCreate) {
       for (let i = 0; i < pack.nodeIds.length; i += SVG_BATCH_SIZE) {
@@ -203,18 +409,17 @@ export async function POST(req: NextRequest) {
     let totalPacksCreated = 0
     let totalIconsCreated = 0
 
-    // If only one page or custom names provided, create a single pack
-    const createSinglePack = packNameEn || packNameRu || packsToCreate.length === 1
+    // In advanced mode or multiple pages → always create one pack per page
+    // In simple mode with single page or custom name → merge into one pack
+    const createSinglePack = !advancedMode && (packNameEn || packNameRu || packsToCreate.length === 1)
 
     if (createSinglePack) {
-      // Merge all into one pack
       const allIcons: Array<{ slug: string; nameRu: string; nameEn: string; keywords: string; svg: string; viewBox: string }> = []
 
       for (const pack of packsToCreate) {
         for (const [nodeId, nodeName] of pack.nodeNames) {
           const svgRaw = allSvgMap.get(nodeId)
           if (!svgRaw) continue
-
           const parsed = parseSvgIcon(svgRaw, nodeName)
           if (parsed) allIcons.push(parsed)
         }
@@ -240,7 +445,7 @@ export async function POST(req: NextRequest) {
           nameEn: packNameEn || fileName,
           descRu: `Импортировано из Figma: ${fileName}`,
           descEn: `Imported from Figma: ${fileName}`,
-          category,
+          category: category || 'system',
           style: style || 'outline',
           tags: allIcons.slice(0, 20).map(i => i.slug.split('-').pop()).join(','),
           isFree: true,
@@ -254,14 +459,13 @@ export async function POST(req: NextRequest) {
       totalIconsCreated = pack._count.icons
       results.push(`✓ "${finalSlug}" — ${pack._count.icons} icons`)
     } else {
-      // Create one pack per page
+      // Create one pack per page, each with its own category
       for (const pack of packsToCreate) {
         const icons: Array<{ slug: string; nameRu: string; nameEn: string; keywords: string; svg: string; viewBox: string }> = []
 
         for (const [nodeId, nodeName] of pack.nodeNames) {
           const svgRaw = allSvgMap.get(nodeId)
           if (!svgRaw) continue
-
           const parsed = parseSvgIcon(svgRaw, nodeName)
           if (parsed) icons.push(parsed)
         }
@@ -278,14 +482,17 @@ export async function POST(req: NextRequest) {
         const finalSlug = await ensureUniqueSlug(`figma-${pageSlug}`)
 
         try {
+          const catInfo = CATEGORIES.find(c => c.slug === pack.packCategory)
+          const catLabel = catInfo ? (catInfo.nameRu) : pack.packCategory
+
           const created = await db.pack.create({
             data: {
               slug: finalSlug,
               nameRu: pack.pageName,
               nameEn: pack.pageName,
-              descRu: `Импортировано из Figma: ${fileName}, страница "${pack.pageName}"`,
-              descEn: `Imported from Figma: ${fileName}, page "${pack.pageName}"`,
-              category,
+              descRu: `Импортировано из Figma: ${fileName}, страница "${pack.pageName}" (категория: ${catLabel})`,
+              descEn: `Imported from Figma: ${fileName}, page "${pack.pageName}" (category: ${catLabel})`,
+              category: pack.packCategory,
               style: style || 'outline',
               tags: icons.slice(0, 20).map(i => i.slug.split('-').pop()).join(','),
               isFree: true,
@@ -297,7 +504,7 @@ export async function POST(req: NextRequest) {
 
           totalPacksCreated++
           totalIconsCreated += created._count.icons
-          results.push(`✓ "${finalSlug}" (${pack.pageName}) — ${created._count.icons} icons`)
+          results.push(`✓ "${finalSlug}" (${pack.pageName}) [${catLabel}] — ${created._count.icons} icons`)
         } catch (e: any) {
           results.push(`✗ "${pageSlug}" — ${e?.message || 'error'}`)
         }
@@ -324,13 +531,11 @@ export async function POST(req: NextRequest) {
 
 /** Parse raw SVG string into our Icon format */
 function parseSvgIcon(svgRaw: string, nodeName: string): { slug: string; nameRu: string; nameEn: string; keywords: string; svg: string; viewBox: string } | null {
-  // Extract viewBox
   let viewBox = '0 0 24 24'
   const vbMatch = svgRaw.match(/viewBox\s*=\s*["']([^"']+)["']/)
   if (vbMatch) {
     viewBox = vbMatch[1]
   } else {
-    // Try width/height
     const wMatch = svgRaw.match(/\bwidth\s*=\s*["']?(\d+(?:\.\d+)?)["'?]/)
     const hMatch = svgRaw.match(/\bheight\s*=\s*["']?(\d+(?:\.\d+)?)["'?]/)
     if (wMatch && hMatch) {
@@ -338,12 +543,10 @@ function parseSvgIcon(svgRaw: string, nodeName: string): { slug: string; nameRu:
     }
   }
 
-  // Extract inner SVG body
   const innerMatch = svgRaw.match(/<svg[^>]*>([\s\S]*)<\/svg>/i)
   let svgBody = innerMatch ? innerMatch[1].trim() : svgRaw.trim()
   if (!svgBody || svgBody.length < 3) return null
 
-  // Clean up: remove xmlns, ids, etc.
   svgBody = svgBody
     .replace(/\s*xmlns="[^"]*"/g, '')
     .replace(/\s*xmlns:xlink="[^"]*"/g, '')
@@ -352,7 +555,6 @@ function parseSvgIcon(svgRaw: string, nodeName: string): { slug: string; nameRu:
     .replace(/<desc[^>]*>[\s\S]*?<\/desc>\s*/gi, '')
     .trim()
 
-  // Generate slug from node name
   const slug = nodeName
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
@@ -362,12 +564,10 @@ function parseSvgIcon(svgRaw: string, nodeName: string): { slug: string; nameRu:
 
   if (!slug) return null
 
-  // Generate display name from slug
   const nameEn = nodeName
     .replace(/[-_]/g, ' ')
     .replace(/\b\w/g, c => c.toUpperCase())
 
-  // Normalize viewBox to 0 0 24 24 if it's a standard 24x24 grid
   const vbParts = viewBox.split(/[\s,]+/).map(Number)
   if (vbParts.length === 4 && vbParts[2] === 24 && vbParts[3] === 24) {
     viewBox = '0 0 24 24'
@@ -375,7 +575,7 @@ function parseSvgIcon(svgRaw: string, nodeName: string): { slug: string; nameRu:
 
   return {
     slug,
-    nameRu: nameEn, // Figma has no Russian names, use English as fallback
+    nameRu: nameEn,
     nameEn,
     keywords: nodeName.toLowerCase().replace(/[-_]/g, ' '),
     svg: svgBody,
