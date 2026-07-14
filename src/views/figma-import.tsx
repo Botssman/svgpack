@@ -37,9 +37,11 @@ type FrameConfig = {
 }
 
 const STYLES = [
-  { slug: 'outline', label: 'Outline' },
-  { slug: 'filled', label: 'Filled' },
-  { slug: 'duotone', label: 'Duotone' },
+  { slug: 'outline', label: 'Outline', hint: 'thin / line / stroke' },
+  { slug: 'filled', label: 'Filled', hint: 'solid / bold / heavy' },
+  { slug: 'duotone', label: 'Duotone', hint: 'two-tone / dual' },
+  { slug: 'brand', label: 'Brand', hint: 'logos & social' },
+  { slug: 'thin', label: 'Thin', hint: 'light / ultra-thin' },
 ]
 
 /**
@@ -468,18 +470,22 @@ export function FigmaImportPanel() {
                         <span className="text-xs text-slate-400 ml-1.5">{frame.iconCount}</span>
                       </div>
 
-                      {/* Style selector */}
-                      <div className="w-28 shrink-0">
+                      {/* Style selector with auto-badge */}
+                      <div className="w-32 shrink-0 flex items-center gap-1">
                         <select
                           value={frame.style}
                           onChange={e => setStyleForFrame(frame.id, e.target.value)}
                           disabled={!frame.enabled}
-                          className="w-full px-2 py-1 rounded-md border border-slate-200 text-xs bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 px-2 py-1 rounded-md border border-slate-200 text-xs bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {STYLES.map(s => (
                             <option key={s.slug} value={s.slug}>{s.label}</option>
                           ))}
                         </select>
+                        {/* Show auto-detected badge if style matches suggestion */}
+                        {frameConfigs.find(f => f.id === frame.id) && (
+                          <span className="text-[10px] text-slate-400 leading-none" title={lang === 'ru' ? 'Определено автоматически' : 'Auto-detected'}>auto</span>
+                        )}
                       </div>
 
                       {/* Category selector */}

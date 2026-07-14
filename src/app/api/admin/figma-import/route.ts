@@ -30,7 +30,12 @@ interface FrameInfo {
  * GET /api/admin/figma-import?figmaToken=...&fileKey=...
  *
  * Preview the structure of a Figma file before importing.
- * Returns: pages with frames (each frame = potential pack) and suggested categories.
+ * Returns: pages with frames (each frame/group = potential pack) and suggested categories/styles.
+ *
+ * Smart detection:
+ * - GROUPs and FRAMEs with icons → separate packs
+ * - Style auto-detected from frame/group name AND component names
+ * - Category auto-detected from names + component names
  */
 export async function GET(req: NextRequest) {
   try {
@@ -65,13 +70,62 @@ export async function GET(req: NextRequest) {
     // Fetch categories from DB
     const dbCategories = await db.category.findMany({ orderBy: { sortOrder: 'asc' } })
 
-    // ── Style auto-detection from frame/page names ──
+    // ── Style auto-detection from name ──
     function suggestStyle(name: string): string {
       const lower = name.toLowerCase().trim()
       if (/duotone|two.?tone|twotone|dual|2.?tone/.test(lower)) return 'duotone'
       if (/bold|filled|solid|fill|heavy|thick/.test(lower)) return 'filled'
       // Default to outline for regular, thin, light, line, outline, stroke, etc.
       return 'outline'
+    }
+
+    /**
+     * Detect style by analyzing child component names.
+     * Looks for style keywords in component naming patterns:
+     *   "arrow-left/outline", "Outline/Arrow-Left", "arrow-left-outline",
+     *   "Arrow Left (Outline)", "24/outline/arrow-left", etc.
+     */
+    function suggestStyleFromChildren(node: FigmaNode, fallback: string = 'outline'): string {
+      const names = collectAllComponentNames(node)
+      if (names.length === 0) return fallback
+
+      const styleScores: Record<string, number> = { outline: 0, filled: 0, duotone: 0 }
+
+      for (const name of names) {
+        const lower = name.toLowerCase()
+        // Check for style keywords in the component name or path
+        if (/duotone|two.?tone|twotone|dual|2.?tone/.test(lower)) {
+          styleScores.duotone += 2
+        } else if (/\bfilled\b|\bsolid\b|\bbold\b|\bfill\b|\bheavy\b|\bthick\b/.test(lower)) {
+          styleScores.filled += 2
+        } else if (/\boutline\b|\boutlined\b|\bline\b|\blined\b|\bstroke\b|\bregular\b|\bthin\b|\blight\b/.test(lower)) {
+          styleScores.outline += 2
+        }
+        // Check path segments like "24/Outline/arrow-left" or "Outline/Arrow-Left"
+        const segments = lower.split(/[/\\_-\s]+/)
+        for (const seg of segments) {
+          if (seg === 'outline' || seg === 'outlined' || seg === 'line' || seg === 'stroke' || seg === 'regular' || seg === 'thin' || seg === 'light') {
+            styleScores.outline += 1
+          } else if (seg === 'filled' || seg === 'solid' || seg === 'bold' || seg === 'fill' || seg === 'heavy' || seg === 'thick') {
+            styleScores.filled += 1
+          } else if (seg === 'duotone' || seg === 'twotone' || seg === 'dual') {
+            styleScores.duotone += 1
+          }
+        }
+      }
+
+      // Find the dominant style
+      let bestStyle = fallback
+      let bestScore = 0
+      for (const [style, score] of Object.entries(styleScores)) {
+        if (score > bestScore) {
+          bestScore = score
+          bestStyle = style
+        }
+      }
+
+      // Only override fallback if we have a clear signal
+      return bestScore >= 2 ? bestStyle : fallback
     }
 
     // ── Keyword matching for category suggestions ──
@@ -194,6 +248,39 @@ export async function GET(req: NextRequest) {
     }
 
     /**
+     * Count ALL icons recursively within a node (including deep children).
+     */
+    function countAllIconsInNode(node: FigmaNode): number {
+      let count = 0
+      function walk(n: FigmaNode) {
+        if (n.type === 'COMPONENT') count++
+        else if (n.type === 'COMPONENT_SET' && n.children) {
+          count += n.children.filter(c => c.type === 'COMPONENT').length
+        }
+        if (n.children) for (const c of n.children) walk(c)
+      }
+      walk(node)
+      return count
+    }
+
+    /**
+     * Count how many direct child FRAMEs AND GROUPs contain icons.
+     * Both FRAME and GROUP children are treated as potential pack containers.
+     */
+    function countChildContainersWithIcons(node: FigmaNode): number {
+      if (!node.children) return 0
+      let count = 0
+      for (const child of node.children) {
+        if ((child.type === 'FRAME' || child.type === 'GROUP') && child.children) {
+          if (countAllIconsInNode(child) > 0) {
+            count++
+          }
+        }
+      }
+      return count
+    }
+
+    /**
      * Count how many direct child FRAMEs of this node contain icons.
      * Used to detect "style group" frames (Regular/Thin/Bold) that wrap
      * category sub-frames (Arrows/Brands/System).
@@ -213,7 +300,7 @@ export async function GET(req: NextRequest) {
 
     /**
      * Recursively collect ALL component names inside a node.
-     * Used for category suggestion when a frame is a "style group".
+     * Used for category/style suggestion.
      */
     function collectAllComponentNames(node: FigmaNode): string[] {
       const names: string[] = []
@@ -228,62 +315,241 @@ export async function GET(req: NextRequest) {
       return names
     }
 
-    // Walk a page to find frames that should become packs.
-    // Key insight: if a FRAME contains other FRAMEs that have icons,
-    // it's a "style group" (e.g. "Regular") — recurse into sub-frames
-    // instead of treating the parent as one big pack.
+    /**
+     * Collect direct child components only (not recursive).
+     * Used for counting "loose" icons at a level.
+     */
+    function collectDirectIcons(nodes: FigmaNode[]): Array<{ id: string; name: string }> {
+      const icons: Array<{ id: string; name: string }> = []
+      for (const node of nodes) {
+        if (node.type === 'COMPONENT') {
+          icons.push({ id: node.id, name: node.name })
+        } else if (node.type === 'COMPONENT_SET' && node.children) {
+          for (const child of node.children) {
+            if (child.type === 'COMPONENT') icons.push({ id: child.id, name: child.name })
+          }
+        }
+      }
+      return icons
+    }
+
+    /**
+     * When a frame has flat icons (no sub-containers), try to auto-split
+     * them into multiple packs by detected category from component names.
+     * Returns one FrameInfo per detected category group.
+     */
+    function trySplitByCategory(node: FigmaNode, effectiveStyle: string): FrameInfo[] {
+      const allIcons = collectAllComponentNames(node)
+      if (allIcons.length < 5) {
+        // Too few icons to split — keep as single pack
+        return []
+      }
+
+      // Group each icon name into a category
+      const catGroups: Record<string, string[]> = {}
+      for (const name of allIcons) {
+        const { category } = suggestCategory(name)
+        if (!catGroups[category]) catGroups[category] = []
+        catGroups[category].push(name)
+      }
+
+      // Only split if there are 2+ non-uncategorized groups with enough icons
+      const significantGroups = Object.entries(catGroups)
+        .filter(([cat, names]) => cat !== 'uncategorized' && names.length >= 2)
+
+      if (significantGroups.length < 2) return [] // Not enough diversity to split
+
+      const frames: FrameInfo[] = []
+      for (const [cat, names] of significantGroups) {
+        frames.push({
+          id: `${node.id}__cat__${cat}`,
+          name: `${node.name} / ${cat}`,
+          iconCount: names.length,
+          suggestedCategory: cat,
+          suggestedStyle: effectiveStyle,
+        })
+      }
+
+      // Add uncategorized leftovers
+      if (catGroups['uncategorized'] && catGroups['uncategorized'].length >= 2) {
+        frames.push({
+          id: `${node.id}__cat__uncategorized`,
+          name: `${node.name} / other`,
+          iconCount: catGroups['uncategorized'].length,
+          suggestedCategory: 'uncategorized',
+          suggestedStyle: effectiveStyle,
+        })
+      }
+
+      return frames
+    }
+
+    /**
+     * Walk a page to find frames/groups that should become packs.
+     *
+     * Strategy:
+     * 1. If a FRAME/GROUP contains 2+ child FRAMEs/GROUPs with icons → each child = separate pack
+     * 2. If a FRAME contains sub-FRAMEs with icons (style groups like Regular/Thin/Bold) → recurse
+     * 3. If a FRAME/GROUP directly contains flat icons → single pack or auto-split by category
+     * 4. If nothing found → recurse deeper
+     */
     function findIconFrames(nodes: FigmaNode[], parentStyle?: string): FrameInfo[] {
       const frames: FrameInfo[] = []
 
       for (const node of nodes) {
         if (node.type === 'FRAME' && node.children) {
           const directIcons = countIconsInNodes(node.children)
+          const childContainersWithIcons = countChildContainersWithIcons(node)
           const subFramesWithIcons = countSubFramesWithIcons(node)
           const frameStyle = suggestStyle(node.name)
-          const effectiveStyle = parentStyle || frameStyle
+          // If parent already detected a style (e.g. from page name), prefer it unless
+          // this frame has a clear style keyword
+          const effectiveStyle = (frameStyle !== 'outline' || !parentStyle) ? frameStyle : parentStyle
 
-          if (subFramesWithIcons >= 2) {
-            // This frame is a "style group" (e.g. "Regular", "Thin", "Bold")
-            // Recurse into sub-frames to find actual category packs
-            const deeper = findIconFrames(node.children, effectiveStyle)
-            frames.push(...deeper)
+          if (childContainersWithIcons >= 2) {
+            // This frame has 2+ child FRAMEs/GROUPs that each contain icons.
+            // Each child container = a separate pack.
+            console.log(`[findIconFrames] Frame "${node.name}" has ${childContainersWithIcons} child containers with icons → splitting`)
 
-            // Also check for loose components at this level
+            for (const child of node.children) {
+              if ((child.type === 'FRAME' || child.type === 'GROUP') && child.children) {
+                const childIconCount = countAllIconsInNode(child)
+                if (childIconCount === 0) continue
+
+                const childStyleFromName = suggestStyle(child.name)
+                const childStyleFromChildren = suggestStyleFromChildren(child, effectiveStyle)
+                // Name-based detection wins if it found a non-outline style
+                const childStyle = childStyleFromName !== 'outline' ? childStyleFromName : childStyleFromChildren
+
+                const catSuggestion = suggestCategory(child.name)
+                const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(child)
+
+                frames.push({
+                  id: child.id,
+                  name: child.name,
+                  iconCount: childIconCount,
+                  suggestedCategory: category,
+                  suggestedStyle: childStyle,
+                })
+              }
+            }
+
+            // Also check for loose components at this level (not inside any GROUP/FRAME)
             if (directIcons > 0) {
-              // There are loose components outside the sub-frames
-              // Add them as a separate pack named after the frame
               const catSuggestion = suggestCategory(node.name)
               const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
+              const styleFromChildren = suggestStyleFromChildren(node, effectiveStyle)
               frames.push({
                 id: node.id + '__loose',
                 name: node.name + ' (other)',
                 iconCount: directIcons,
                 suggestedCategory: category,
-                suggestedStyle: effectiveStyle,
+                suggestedStyle: styleFromChildren,
+              })
+            }
+          } else if (subFramesWithIcons >= 2 && childContainersWithIcons < 2) {
+            // Has sub-FRAMEs but they don't have direct icons —
+            // this is a "style group" (e.g. "Regular", "Thin", "Bold") wrapping deeper category frames
+            const deeper = findIconFrames(node.children, effectiveStyle)
+            frames.push(...deeper)
+
+            if (directIcons > 0) {
+              const catSuggestion = suggestCategory(node.name)
+              const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
+              const styleFromChildren = suggestStyleFromChildren(node, effectiveStyle)
+              frames.push({
+                id: node.id + '__loose',
+                name: node.name + ' (other)',
+                iconCount: directIcons,
+                suggestedCategory: category,
+                suggestedStyle: styleFromChildren,
               })
             }
           } else if (directIcons > 0) {
-            // This frame directly contains components and no significant sub-frames
-            // → it's a pack candidate
-            const catSuggestion = suggestCategory(node.name)
-            const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
-            frames.push({
-              id: node.id,
-              name: node.name,
-              iconCount: directIcons,
-              suggestedCategory: category,
-              suggestedStyle: effectiveStyle,
-            })
+            // This frame directly contains components and no significant sub-containers.
+            // First try auto-split by category from component names
+            const splits = trySplitByCategory(node, effectiveStyle)
+            if (splits.length >= 2) {
+              // We found multiple category groups → split into multiple packs
+              console.log(`[findIconFrames] Frame "${node.name}" auto-split into ${splits.length} category packs`)
+              frames.push(...splits)
+            } else {
+              // Single pack
+              const catSuggestion = suggestCategory(node.name)
+              const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
+              const styleFromChildren = suggestStyleFromChildren(node, effectiveStyle)
+              frames.push({
+                id: node.id,
+                name: node.name,
+                iconCount: directIcons,
+                suggestedCategory: category,
+                suggestedStyle: styleFromChildren,
+              })
+            }
           } else {
-            // No direct icons and no sub-frames with icons → recurse deeper
+            // No direct icons and no child containers with icons → recurse deeper
             const deeper = findIconFrames(node.children, effectiveStyle)
             frames.push(...deeper)
           }
         } else if (node.type === 'GROUP' && node.children) {
-          const deeper = findIconFrames(node.children, parentStyle)
-          frames.push(...deeper)
+          // GROUP at the top level (directly on a page) — treat as a pack candidate
+          const groupIconCount = countAllIconsInNode(node)
+          if (groupIconCount > 0) {
+            const groupStyleFromName = suggestStyle(node.name)
+            const groupStyleFromChildren = suggestStyleFromChildren(node, parentStyle || 'outline')
+            const groupStyle = groupStyleFromName !== 'outline' ? groupStyleFromName : groupStyleFromChildren
+
+            // Check if this GROUP has sub-containers with icons
+            const subContainers = countChildContainersWithIcons(node)
+            if (subContainers >= 2) {
+              // GROUP contains multiple sub-containers → split them
+              for (const child of node.children) {
+                if ((child.type === 'FRAME' || child.type === 'GROUP') && child.children) {
+                  const childIconCount = countAllIconsInNode(child)
+                  if (childIconCount === 0) continue
+
+                  const childStyleFromName = suggestStyle(child.name)
+                  const childStyleFromChildren = suggestStyleFromChildren(child, groupStyle)
+                  const childStyle = childStyleFromName !== 'outline' ? childStyleFromName : childStyleFromChildren
+
+                  const catSuggestion = suggestCategory(child.name)
+                  const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(child)
+
+                  frames.push({
+                    id: child.id,
+                    name: child.name,
+                    iconCount: childIconCount,
+                    suggestedCategory: category,
+                    suggestedStyle: childStyle,
+                  })
+                }
+              }
+            } else {
+              // GROUP is a single pack
+              const catSuggestion = suggestCategory(node.name)
+              const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
+
+              // Try auto-split by category
+              const splits = trySplitByCategory(node, groupStyle)
+              if (splits.length >= 2) {
+                frames.push(...splits)
+              } else {
+                frames.push({
+                  id: node.id,
+                  name: node.name,
+                  iconCount: groupIconCount,
+                  suggestedCategory: category,
+                  suggestedStyle: groupStyle,
+                })
+              }
+            }
+          } else {
+            // Empty GROUP → recurse deeper
+            const deeper = findIconFrames(node.children, parentStyle)
+            frames.push(...deeper)
+          }
         } else if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
-          // Icons directly on the page (not inside a frame)
+          // Icons directly on the page (not inside a frame/group)
           const existing = frames.find(f => f.id === '__page__')
           if (node.type === 'COMPONENT_SET' && node.children) {
             const count = node.children.filter(c => c.type === 'COMPONENT').length
@@ -357,6 +623,10 @@ export async function GET(req: NextRequest) {
  *     frames: [{ id, name, category, enabled, pageName }] }
  *
  * Each enabled frame becomes its own pack.
+ * Special frame IDs:
+ *   - "frameId__cat__categorySlug" → auto-split by category: only import icons matching this category
+ *   - "frameId__loose" → only import loose components (not inside sub-containers)
+ *   - "__page__" → loose icons on the page level
  */
 export async function POST(req: NextRequest) {
   try {
@@ -421,8 +691,57 @@ export async function POST(req: NextRequest) {
 
     console.log(`[figma-import] File: "${fileName}", pages: ${document.children?.length}`)
 
+    // ── Category keywords (same as in GET handler) ──
+    const categoryKeywords: Record<string, string[]> = {
+      arrows: ['arrow', 'direction', 'navigate', 'chevron', 'navigation', 'pointer'],
+      brands: ['brand', 'logo', 'social', 'company', 'google', 'apple', 'facebook', 'instagram', 'twitter', 'youtube', 'spotify', 'slack', 'discord'],
+      buildings: ['building', 'city', 'house', 'architecture', 'office', 'factory', 'skyscraper', 'monument'],
+      communication: ['message', 'chat', 'mail', 'phone', 'call', 'email', 'inbox', 'send', 'bubble', 'talk'],
+      concepts: ['concept', 'pattern', 'api', 'database', 'server', 'cloud', 'microservice', 'deploy', 'pipeline', 'workflow', 'logic'],
+      design: ['design', 'color', 'palette', 'pen', 'brush', 'camera', 'layer', 'layout', 'crop', 'mask', 'gradient'],
+      devices: ['device', 'phone', 'computer', 'laptop', 'tablet', 'monitor', 'watch', 'smartphone', 'desktop', 'tv'],
+      document: ['document', 'file', 'folder', 'paper', 'certificate', 'report', 'note', 'clipboard', 'archive', 'invoice'],
+      ecommerce: ['shop', 'cart', 'store', 'payment', 'price', 'discount', 'money', 'coin', 'wallet', 'receipt', 'bag'],
+      education: ['education', 'school', 'book', 'learn', 'teach', 'student', 'graduate', 'cap', 'academic', 'course'],
+      food: ['food', 'drink', 'restaurant', 'kitchen', 'cook', 'meal', 'coffee', 'pizza', 'cake', 'wine'],
+      frameworks: ['framework', 'react', 'vue', 'angular', 'svelte', 'next', 'nuxt', 'astro', 'solid'],
+      games: ['game', 'play', 'controller', 'dice', 'chess', 'puzzle', 'trophy', 'joystick', 'vr'],
+      health: ['health', 'medical', 'heart', 'doctor', 'hospital', 'medicine', 'pharmacy', 'pulse', 'stethoscope'],
+      languages: ['language', 'code', 'programming', 'javascript', 'python', 'html', 'css', 'typescript', 'ruby', 'golang', 'rust'],
+      letters: ['letter', 'alphabet', 'number', 'symbol', 'character', 'font', 'typography', 'text', 'glyph'],
+      map: ['map', 'location', 'pin', 'compass', 'gps', 'route', 'globe', 'world', 'address'],
+      media: ['media', 'music', 'video', 'microphone', 'headphone', 'record', 'player', 'film', 'camera', 'speaker', 'volume'],
+      mood: ['mood', 'emoji', 'smile', 'face', 'emotion', 'feeling', 'happy', 'sad', 'angry'],
+      nature: ['nature', 'tree', 'leaf', 'flower', 'animal', 'weather', 'sun', 'moon', 'star', 'mountain', 'river'],
+      science: ['science', 'math', 'chart', 'graph', 'formula', 'atom', 'lab', 'experiment', 'physics', 'biology'],
+      shapes: ['shape', 'circle', 'square', 'triangle', 'polygon', 'star', 'hexagon', 'diamond', 'octagon'],
+      sport: ['sport', 'football', 'basketball', 'tennis', 'run', 'swim', 'trophy', 'medal', 'stadium', 'ball'],
+      system: ['system', 'setting', 'filter', 'notification', 'menu', 'button', 'toggle', 'ui', 'checkbox', 'slider', 'switch', 'input', 'dropdown', 'search', 'close', 'plus', 'minus', 'check', 'edit', 'delete', 'copy', 'move', 'drag', 'scroll', 'lock', 'unlock', 'eye', 'link', 'external', 'refresh', 'download', 'upload', 'share', 'save', 'more', 'grid', 'list', 'sort', 'zoom'],
+      tools: ['tool', 'dev', 'git', 'github', 'docker', 'terminal', 'code', 'debug', 'wrench', 'hammer', 'settings', 'plug', 'api', 'command'],
+      vehicles: ['vehicle', 'car', 'bike', 'plane', 'ship', 'bus', 'train', 'helicopter', 'rocket', 'truck', 'scooter'],
+    }
+
+    function suggestCategoryForName(name: string): { category: string; confidence: number } {
+      const lower = name.toLowerCase()
+      let bestCategory = 'uncategorized'
+      let bestScore = 0
+      for (const [catSlug, keywords] of Object.entries(categoryKeywords)) {
+        let score = 0
+        for (const kw of keywords) {
+          if (lower.includes(kw)) {
+            const wordBoundary = new RegExp(`\\b${kw}\\b`).test(lower)
+            score += lower.startsWith(kw) ? 4 : wordBoundary ? 3 : 1
+          }
+        }
+        if (score > bestScore) {
+          bestScore = score
+          bestCategory = catSlug
+        }
+      }
+      return { category: bestCategory, confidence: bestScore }
+    }
+
     // 2. Walk the document tree to find icons per frame
-    // For per-frame mode, we need to collect icons for each specific frame
     const packsToCreate: Array<{
       frameName: string
       frameId: string
@@ -443,11 +762,52 @@ export async function POST(req: NextRequest) {
               target.set(child.id, child.name)
             }
           }
-        } else if (node.type === 'FRAME' && node.children) {
-          collectIconNodes(node.children, target)
-        } else if (node.type === 'GROUP' && node.children) {
+        } else if ((node.type === 'FRAME' || node.type === 'GROUP') && node.children) {
           collectIconNodes(node.children, target)
         }
+      }
+    }
+
+    /**
+     * Collect only icons whose names match the given category.
+     * Used for auto-split frame IDs (frameId__cat__categorySlug).
+     */
+    function collectIconNodesByCategory(nodes: FigmaNode[], targetCategory: string, target: Map<string, string>) {
+      for (const node of nodes) {
+        if (node.type === 'COMPONENT') {
+          const { category } = suggestCategoryForName(node.name)
+          if (category === targetCategory) {
+            target.set(node.id, node.name)
+          }
+        } else if (node.type === 'COMPONENT_SET' && node.children) {
+          for (const child of node.children) {
+            if (child.type === 'COMPONENT') {
+              const { category } = suggestCategoryForName(child.name)
+              if (category === targetCategory) {
+                target.set(child.id, child.name)
+              }
+            }
+          }
+        } else if ((node.type === 'FRAME' || node.type === 'GROUP') && node.children) {
+          collectIconNodesByCategory(node.children, targetCategory, target)
+        }
+      }
+    }
+
+    /**
+     * Collect only DIRECT child components (not inside sub-FRAMEs/GROUPs).
+     * Used for "loose" frame IDs (frameId__loose).
+     */
+    function collectDirectIconNodes(nodes: FigmaNode[], target: Map<string, string>) {
+      for (const node of nodes) {
+        if (node.type === 'COMPONENT') {
+          target.set(node.id, node.name)
+        } else if (node.type === 'COMPONENT_SET' && node.children) {
+          for (const child of node.children) {
+            if (child.type === 'COMPONENT') target.set(child.id, child.name)
+          }
+        }
+        // Don't recurse into FRAME/GROUP — only direct children
       }
     }
 
@@ -490,9 +850,12 @@ export async function POST(req: NextRequest) {
 
         const nodeMap = new Map<string, string>()
 
-        // Special case: "__page__" means loose icons not in any frame
+        // Parse special frame ID patterns
+        const catMatch = fc.id.match(/^(.+)__cat__(.+)$/)
+        const looseMatch = fc.id.match(/^(.+)__loose$/)
+
         if (fc.id === '__page__') {
-          // Find the page and collect loose components
+          // Loose icons on the page level
           for (const page of canvasPages) {
             if (page.type !== 'CANVAS' || !page.children) continue
             if (page.name !== fc.pageName) continue
@@ -507,8 +870,32 @@ export async function POST(req: NextRequest) {
               }
             }
           }
+        } else if (catMatch) {
+          // Auto-split by category: collect only icons matching the target category
+          const [, realFrameId, targetCategory] = catMatch
+          console.log(`[figma-import] Auto-split frame: collecting "${targetCategory}" icons from frame ${realFrameId}`)
+
+          for (const page of canvasPages) {
+            if (page.type !== 'CANVAS' || !page.children) continue
+            const frameNode = findFrameNode(page.children, realFrameId)
+            if (frameNode && frameNode.children) {
+              collectIconNodesByCategory(frameNode.children, targetCategory, nodeMap)
+            }
+          }
+        } else if (looseMatch) {
+          // Only direct children of the frame (not inside sub-containers)
+          const [, realFrameId] = looseMatch
+          console.log(`[figma-import] Collecting loose icons from frame ${realFrameId}`)
+
+          for (const page of canvasPages) {
+            if (page.type !== 'CANVAS' || !page.children) continue
+            const frameNode = findFrameNode(page.children, realFrameId)
+            if (frameNode && frameNode.children) {
+              collectDirectIconNodes(frameNode.children, nodeMap)
+            }
+          }
         } else {
-          // Find the frame node and collect its icons
+          // Regular frame/group: collect all icons within it
           for (const page of canvasPages) {
             if (page.type !== 'CANVAS' || !page.children) continue
             const frameNode = findFrameNode(page.children, fc.id)
@@ -630,7 +1017,7 @@ export async function POST(req: NextRequest) {
 
         totalPacksCreated++
         totalIconsCreated += created._count.icons
-        results.push(`✓ "${finalSlug}" (${pack.frameName}) [${catLabel}] — ${created._count.icons} icons`)
+        results.push(`✓ "${finalSlug}" (${pack.frameName}) [${catLabel}, ${pack.packStyle}] — ${created._count.icons} icons`)
       } catch (e: any) {
         results.push(`✗ "${frameSlug}" — ${e?.message || 'error'}`)
       }
