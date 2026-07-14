@@ -9,6 +9,7 @@ type PageInfo = {
   iconCount: number
   frames: FrameInfo[]
   suggestedCategory: string
+  suggestedStyle: string
 }
 
 type FrameInfo = {
@@ -16,6 +17,7 @@ type FrameInfo = {
   name: string
   iconCount: number
   suggestedCategory: string
+  suggestedStyle: string
 }
 
 type CategoryOption = {
@@ -29,17 +31,24 @@ type FrameConfig = {
   name: string
   pageName: string
   category: string
+  style: string
   enabled: boolean
   iconCount: number
 }
+
+const STYLES = [
+  { slug: 'outline', label: 'Outline' },
+  { slug: 'filled', label: 'Filled' },
+  { slug: 'duotone', label: 'Duotone' },
+]
 
 /**
  * FigmaImport — advanced Figma import with per-frame pack creation.
  *
  * Steps:
  * 1. Enter Figma Token + File URL
- * 2. Preview file structure → each frame = potential pack
- * 3. Select frames → assign categories → import (1 frame = 1 pack)
+ * 2. Preview file structure → each frame = potential pack (with auto-detected style & category)
+ * 3. Select frames → assign categories/styles → import (1 frame = 1 pack)
  */
 export function FigmaImportPanel() {
   const { lang } = useI18n()
@@ -51,7 +60,7 @@ export function FigmaImportPanel() {
   // Step 1: Input
   const [figmaToken, setFigmaToken] = useState('')
   const [fileUrl, setFileUrl] = useState('')
-  const [style, setStyle] = useState('outline')
+  const [defaultStyle, setDefaultStyle] = useState('outline')
 
   // Step 2: Preview
   const [loading, setLoading] = useState(false)
@@ -104,6 +113,7 @@ export function FigmaImportPanel() {
             name: frame.name,
             pageName: page.name,
             category: frame.suggestedCategory || 'uncategorized',
+            style: frame.suggestedStyle || defaultStyle,
             enabled: true,
             iconCount: frame.iconCount,
           })
@@ -116,7 +126,7 @@ export function FigmaImportPanel() {
     } finally {
       setLoading(false)
     }
-  }, [figmaToken, fileUrl, lang, toast])
+  }, [figmaToken, fileUrl, defaultStyle, lang, toast])
 
   // Step 2 → 3: Import selected frames
   const handleImport = useCallback(async () => {
@@ -139,11 +149,12 @@ export function FigmaImportPanel() {
         body: JSON.stringify({
           figmaToken,
           fileKey,
-          style,
+          style: defaultStyle,
           frames: enabledFrames.map(f => ({
             id: f.id,
             name: f.name,
             category: f.category,
+            style: f.style,
             enabled: true,
             pageName: f.pageName,
           })),
@@ -169,7 +180,7 @@ export function FigmaImportPanel() {
     } finally {
       setImporting(false)
     }
-  }, [figmaToken, fileUrl, style, frameConfigs, lang, toast])
+  }, [figmaToken, fileUrl, defaultStyle, frameConfigs, lang, toast])
 
   const toggleFrame = (frameId: string) => {
     setFrameConfigs(prev => prev.map(f =>
@@ -183,9 +194,21 @@ export function FigmaImportPanel() {
     ))
   }
 
+  const setStyleForFrame = (frameId: string, style: string) => {
+    setFrameConfigs(prev => prev.map(f =>
+      f.id === frameId ? { ...f, style } : f
+    ))
+  }
+
   const setCategoryForPage = (pageName: string, category: string) => {
     setFrameConfigs(prev => prev.map(f =>
       f.pageName === pageName ? { ...f, category } : f
+    ))
+  }
+
+  const setStyleForPage = (pageName: string, style: string) => {
+    setFrameConfigs(prev => prev.map(f =>
+      f.pageName === pageName ? { ...f, style } : f
     ))
   }
 
@@ -213,8 +236,8 @@ export function FigmaImportPanel() {
             </h3>
             <p className="text-sm text-slate-500 mt-1">
               {lang === 'ru'
-                ? 'Импортируйте иконки напрямую из Figma-файла. Каждый фрейм с иконками станет отдельным паком.'
-                : 'Import icons directly from a Figma file. Each frame with icons will become a separate pack.'}
+                ? 'Импортируйте иконки напрямую из Figma-файла. Каждый фрейм с иконками станет отдельным паком. Стиль и категория определяются автоматически.'
+                : 'Import icons directly from a Figma file. Each frame with icons becomes a separate pack. Style and category are auto-detected.'}
             </p>
           </div>
 
@@ -249,22 +272,19 @@ export function FigmaImportPanel() {
             />
           </div>
 
-          {/* Style */}
+          {/* Default Style (fallback) */}
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">
-              {lang === 'ru' ? 'Стиль иконок' : 'Icon Style'}
+              {lang === 'ru' ? 'Стиль по умолчанию' : 'Default Style'}
+              <span className="text-slate-400 font-normal ml-1">({lang === 'ru' ? 'определяется автоматически из имён фреймов' : 'auto-detected from frame names'})</span>
             </label>
             <div className="flex gap-2">
-              {[
-                { slug: 'outline', label: 'Outline' },
-                { slug: 'filled', label: 'Filled' },
-                { slug: 'duotone', label: 'Duotone' },
-              ].map(s => (
+              {STYLES.map(s => (
                 <button
                   key={s.slug}
-                  onClick={() => setStyle(s.slug)}
+                  onClick={() => setDefaultStyle(s.slug)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    style === s.slug
+                    defaultStyle === s.slug
                       ? 'bg-neutral-900 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
@@ -302,7 +322,7 @@ export function FigmaImportPanel() {
         </div>
       )}
 
-      {/* ── Step 2: Preview & Per-Frame Category Assignment ── */}
+      {/* ── Step 2: Preview & Per-Frame Category/Style Assignment ── */}
       {step === 2 && (
         <div className="space-y-5">
           {/* File info header */}
@@ -314,8 +334,6 @@ export function FigmaImportPanel() {
                   {pages.length} {lang === 'ru' ? (pages.length === 1 ? 'страница' : pages.length < 5 ? 'страницы' : 'страниц') : (pages.length === 1 ? 'page' : 'pages')}
                   {' · '}
                   {totalIcons} {lang === 'ru' ? 'иконок' : 'icons'}
-                  {' · '}
-                  {lang === 'ru' ? 'Стиль' : 'Style'}: {style}
                 </p>
               </div>
               <button
@@ -385,8 +403,23 @@ export function FigmaImportPanel() {
                       {page.iconCount} {lang === 'ru' ? 'иконок' : 'icons'} · {pageFrames.length} {lang === 'ru' ? (pageFrames.length === 1 ? 'фрейм' : pageFrames.length < 5 ? 'фрейма' : 'фреймов') : 'frames'}
                     </span>
                   </div>
-                  {/* Set category for entire page */}
-                  <div className="w-48">
+                  {/* Bulk: set style for entire page */}
+                  <div className="w-32">
+                    <select
+                      value=""
+                      onChange={e => {
+                        if (e.target.value) setStyleForPage(page.name, e.target.value)
+                      }}
+                      className="w-full px-2 py-1.5 rounded-md border border-slate-200 text-xs bg-white text-slate-500"
+                    >
+                      <option value="">{lang === 'ru' ? 'Стиль всем...' : 'Set style...'}</option>
+                      {STYLES.map(s => (
+                        <option key={s.slug} value={s.slug}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Bulk: set category for entire page */}
+                  <div className="w-44">
                     <select
                       value=""
                       onChange={e => {
@@ -394,7 +427,7 @@ export function FigmaImportPanel() {
                       }}
                       className="w-full px-2 py-1.5 rounded-md border border-slate-200 text-xs bg-white text-slate-500"
                     >
-                      <option value="">{lang === 'ru' ? 'Задать категорию всем...' : 'Set category for all...'}</option>
+                      <option value="">{lang === 'ru' ? 'Категорию всем...' : 'Set category...'}</option>
                       {categories.map(c => (
                         <option key={c.slug} value={c.slug}>
                           {lang === 'ru' ? c.nameRu : c.nameEn}
@@ -433,6 +466,20 @@ export function FigmaImportPanel() {
                       <div className="flex-1 min-w-0">
                         <span className="text-sm text-slate-900 truncate">{frame.name}</span>
                         <span className="text-xs text-slate-400 ml-1.5">{frame.iconCount}</span>
+                      </div>
+
+                      {/* Style selector */}
+                      <div className="w-28 shrink-0">
+                        <select
+                          value={frame.style}
+                          onChange={e => setStyleForFrame(frame.id, e.target.value)}
+                          disabled={!frame.enabled}
+                          className="w-full px-2 py-1 rounded-md border border-slate-200 text-xs bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {STYLES.map(s => (
+                            <option key={s.slug} value={s.slug}>{s.label}</option>
+                          ))}
+                        </select>
                       </div>
 
                       {/* Category selector */}

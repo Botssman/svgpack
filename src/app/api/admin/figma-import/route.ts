@@ -15,6 +15,7 @@ interface PageInfo {
   iconCount: number
   frames: FrameInfo[]
   suggestedCategory: string
+  suggestedStyle: string
 }
 
 interface FrameInfo {
@@ -22,6 +23,7 @@ interface FrameInfo {
   name: string
   iconCount: number
   suggestedCategory: string
+  suggestedStyle: string
 }
 
 /**
@@ -63,36 +65,49 @@ export async function GET(req: NextRequest) {
     // Fetch categories from DB
     const dbCategories = await db.category.findMany({ orderBy: { sortOrder: 'asc' } })
 
-    // ── Keyword matching for category suggestions ──
-    const categoryKeywords: Record<string, string[]> = {
-      arrows: ['arrow', 'direction', 'navigate', 'chevron', 'navigation'],
-      brands: ['brand', 'logo', 'social', 'company', 'google', 'apple', 'facebook'],
-      buildings: ['building', 'city', 'house', 'architecture', 'office', 'factory'],
-      communication: ['message', 'chat', 'mail', 'phone', 'call', 'email'],
-      concepts: ['concept', 'pattern', 'api', 'database', 'server', 'cloud', 'microservice'],
-      design: ['design', 'color', 'palette', 'pen', 'brush', 'camera', 'layer'],
-      devices: ['device', 'phone', 'computer', 'laptop', 'tablet', 'monitor', 'watch'],
-      document: ['document', 'file', 'folder', 'paper', 'certificate', 'report'],
-      ecommerce: ['shop', 'cart', 'store', 'payment', 'price', 'discount', 'money'],
-      education: ['education', 'school', 'book', 'learn', 'teach', 'student', 'graduate'],
-      food: ['food', 'drink', 'restaurant', 'kitchen', 'cook', 'meal'],
-      frameworks: ['framework', 'react', 'vue', 'angular', 'svelte', 'next'],
-      games: ['game', 'play', 'controller', 'dice', 'chess', 'puzzle'],
-      health: ['health', 'medical', 'heart', 'doctor', 'hospital', 'medicine'],
-      languages: ['language', 'code', 'programming', 'javascript', 'python', 'html'],
-      letters: ['letter', 'alphabet', 'number', 'symbol', 'character', 'font'],
-      map: ['map', 'location', 'pin', 'compass', 'gps', 'route'],
-      media: ['media', 'music', 'play', 'video', 'microphone', 'headphone', 'record'],
-      mood: ['mood', 'emoji', 'smile', 'face', 'emotion', 'feeling'],
-      nature: ['nature', 'tree', 'leaf', 'flower', 'animal', 'weather', 'sun'],
-      science: ['science', 'math', 'chart', 'graph', 'formula', 'atom', 'lab'],
-      shapes: ['shape', 'circle', 'square', 'triangle', 'polygon', 'star'],
-      sport: ['sport', 'football', 'basketball', 'tennis', 'run', 'swim', 'trophy'],
-      system: ['system', 'setting', 'filter', 'notification', 'menu', 'button', 'toggle', 'ui'],
-      tools: ['tool', 'dev', 'git', 'github', 'docker', 'terminal', 'code', 'debug'],
-      vehicles: ['vehicle', 'car', 'bike', 'plane', 'ship', 'bus', 'train'],
+    // ── Style auto-detection from frame/page names ──
+    function suggestStyle(name: string): string {
+      const lower = name.toLowerCase().trim()
+      if (/duotone|two.?tone|twotone|dual|2.?tone/.test(lower)) return 'duotone'
+      if (/bold|filled|solid|fill|heavy|thick/.test(lower)) return 'filled'
+      // Default to outline for regular, thin, light, line, outline, stroke, etc.
+      return 'outline'
     }
 
+    // ── Keyword matching for category suggestions ──
+    const categoryKeywords: Record<string, string[]> = {
+      arrows: ['arrow', 'direction', 'navigate', 'chevron', 'navigation', 'pointer'],
+      brands: ['brand', 'logo', 'social', 'company', 'google', 'apple', 'facebook', 'instagram', 'twitter', 'youtube', 'spotify', 'slack', 'discord'],
+      buildings: ['building', 'city', 'house', 'architecture', 'office', 'factory', 'skyscraper', 'monument'],
+      communication: ['message', 'chat', 'mail', 'phone', 'call', 'email', 'inbox', 'send', 'bubble', 'talk'],
+      concepts: ['concept', 'pattern', 'api', 'database', 'server', 'cloud', 'microservice', 'deploy', 'pipeline', 'workflow', 'logic'],
+      design: ['design', 'color', 'palette', 'pen', 'brush', 'camera', 'layer', 'layout', 'crop', 'mask', 'gradient'],
+      devices: ['device', 'phone', 'computer', 'laptop', 'tablet', 'monitor', 'watch', 'smartphone', 'desktop', 'tv'],
+      document: ['document', 'file', 'folder', 'paper', 'certificate', 'report', 'note', 'clipboard', 'archive', 'invoice'],
+      ecommerce: ['shop', 'cart', 'store', 'payment', 'price', 'discount', 'money', 'coin', 'wallet', 'receipt', 'bag'],
+      education: ['education', 'school', 'book', 'learn', 'teach', 'student', 'graduate', 'cap', 'academic', 'course'],
+      food: ['food', 'drink', 'restaurant', 'kitchen', 'cook', 'meal', 'coffee', 'pizza', 'cake', 'wine'],
+      frameworks: ['framework', 'react', 'vue', 'angular', 'svelte', 'next', 'nuxt', 'astro', 'solid'],
+      games: ['game', 'play', 'controller', 'dice', 'chess', 'puzzle', 'trophy', 'joystick', 'vr'],
+      health: ['health', 'medical', 'heart', 'doctor', 'hospital', 'medicine', 'pharmacy', 'pulse', 'stethoscope'],
+      languages: ['language', 'code', 'programming', 'javascript', 'python', 'html', 'css', 'typescript', 'ruby', 'golang', 'rust'],
+      letters: ['letter', 'alphabet', 'number', 'symbol', 'character', 'font', 'typography', 'text', 'glyph'],
+      map: ['map', 'location', 'pin', 'compass', 'gps', 'route', 'globe', 'world', 'address'],
+      media: ['media', 'music', 'video', 'microphone', 'headphone', 'record', 'player', 'film', 'camera', 'speaker', 'volume'],
+      mood: ['mood', 'emoji', 'smile', 'face', 'emotion', 'feeling', 'happy', 'sad', 'angry'],
+      nature: ['nature', 'tree', 'leaf', 'flower', 'animal', 'weather', 'sun', 'moon', 'star', 'mountain', 'river'],
+      science: ['science', 'math', 'chart', 'graph', 'formula', 'atom', 'lab', 'experiment', 'physics', 'biology'],
+      shapes: ['shape', 'circle', 'square', 'triangle', 'polygon', 'star', 'hexagon', 'diamond', 'octagon'],
+      sport: ['sport', 'football', 'basketball', 'tennis', 'run', 'swim', 'trophy', 'medal', 'stadium', 'ball'],
+      system: ['system', 'setting', 'filter', 'notification', 'menu', 'button', 'toggle', 'ui', 'checkbox', 'slider', 'switch', 'input', 'dropdown', 'search', 'close', 'plus', 'minus', 'check', 'edit', 'delete', 'copy', 'move', 'drag', 'scroll', 'lock', 'unlock', 'eye', 'link', 'external', 'refresh', 'download', 'upload', 'share', 'save', 'more', 'grid', 'list', 'sort', 'zoom'],
+      tools: ['tool', 'dev', 'git', 'github', 'docker', 'terminal', 'code', 'debug', 'wrench', 'hammer', 'settings', 'plug', 'api', 'command'],
+      vehicles: ['vehicle', 'car', 'bike', 'plane', 'ship', 'bus', 'train', 'helicopter', 'rocket', 'truck', 'scooter'],
+    }
+
+    /**
+     * Suggest a category based on a name string.
+     * Returns uncategorized when no strong match.
+     */
     function suggestCategory(name: string): { category: string; confidence: number } {
       const lower = name.toLowerCase()
 
@@ -103,8 +118,9 @@ export async function GET(req: NextRequest) {
         let score = 0
         for (const kw of keywords) {
           if (lower.includes(kw)) {
-            // Name starts with keyword → stronger signal
-            score += lower.startsWith(kw) ? 3 : 1
+            // Exact word match or name starts with keyword → stronger signal
+            const wordBoundary = new RegExp(`\\b${kw}\\b`).test(lower)
+            score += lower.startsWith(kw) ? 4 : wordBoundary ? 3 : 1
           }
         }
         if (score > bestScore) {
@@ -114,6 +130,55 @@ export async function GET(req: NextRequest) {
       }
 
       return { category: bestCategory, confidence: bestScore }
+    }
+
+    /**
+     * Suggest category by analyzing child component names (not just frame name).
+     * Takes the mode (most common suggestion) across all children.
+     */
+    function suggestCategoryFromChildren(node: FigmaNode): string {
+      const childNames: string[] = []
+
+      function collectNames(n: FigmaNode) {
+        if (n.type === 'COMPONENT') {
+          childNames.push(n.name)
+        } else if (n.type === 'COMPONENT_SET' && n.children) {
+          for (const c of n.children) {
+            if (c.type === 'COMPONENT') childNames.push(c.name)
+          }
+        } else if (n.children) {
+          for (const c of n.children) collectNames(c)
+        }
+      }
+
+      if (node.children) {
+        for (const c of node.children) collectNames(c)
+      }
+
+      if (childNames.length === 0) return 'uncategorized'
+
+      // Score across all child names
+      const scores: Record<string, number> = {}
+      for (const name of childNames) {
+        const { category, confidence } = suggestCategory(name)
+        if (category !== 'uncategorized') {
+          scores[category] = (scores[category] || 0) + confidence
+        }
+      }
+
+      let bestCategory = 'uncategorized'
+      let bestScore = 0
+      for (const [cat, score] of Object.entries(scores)) {
+        if (score > bestScore) {
+          bestScore = score
+          bestCategory = cat
+        }
+      }
+
+      // Need at least 2 matching children to override uncategorized
+      if (bestScore < 2) return 'uncategorized'
+
+      return bestCategory
     }
 
     // ── Walk the tree to find frames with icons ──
@@ -128,42 +193,105 @@ export async function GET(req: NextRequest) {
       return count
     }
 
-    // Walk a page to find top-level frames that contain icons
-    function findIconFrames(nodes: FigmaNode[]): FrameInfo[] {
+    /**
+     * Count how many direct child FRAMEs of this node contain icons.
+     * Used to detect "style group" frames (Regular/Thin/Bold) that wrap
+     * category sub-frames (Arrows/Brands/System).
+     */
+    function countSubFramesWithIcons(node: FigmaNode): number {
+      if (!node.children) return 0
+      let count = 0
+      for (const child of node.children) {
+        if (child.type === 'FRAME' && child.children) {
+          if (countIconsInNodes(child.children) > 0) {
+            count++
+          }
+        }
+      }
+      return count
+    }
+
+    /**
+     * Recursively collect ALL component names inside a node.
+     * Used for category suggestion when a frame is a "style group".
+     */
+    function collectAllComponentNames(node: FigmaNode): string[] {
+      const names: string[] = []
+      function walk(n: FigmaNode) {
+        if (n.type === 'COMPONENT') names.push(n.name)
+        else if (n.type === 'COMPONENT_SET' && n.children) {
+          for (const c of n.children) if (c.type === 'COMPONENT') names.push(c.name)
+        }
+        if (n.children) for (const c of n.children) walk(c)
+      }
+      walk(node)
+      return names
+    }
+
+    // Walk a page to find frames that should become packs.
+    // Key insight: if a FRAME contains other FRAMEs that have icons,
+    // it's a "style group" (e.g. "Regular") — recurse into sub-frames
+    // instead of treating the parent as one big pack.
+    function findIconFrames(nodes: FigmaNode[], parentStyle?: string): FrameInfo[] {
       const frames: FrameInfo[] = []
 
       for (const node of nodes) {
         if (node.type === 'FRAME' && node.children) {
           const directIcons = countIconsInNodes(node.children)
+          const subFramesWithIcons = countSubFramesWithIcons(node)
+          const frameStyle = suggestStyle(node.name)
+          const effectiveStyle = parentStyle || frameStyle
 
-          if (directIcons > 0) {
-            // This frame directly contains components → it's a pack candidate
-            const suggestion = suggestCategory(node.name)
+          if (subFramesWithIcons >= 2) {
+            // This frame is a "style group" (e.g. "Regular", "Thin", "Bold")
+            // Recurse into sub-frames to find actual category packs
+            const deeper = findIconFrames(node.children, effectiveStyle)
+            frames.push(...deeper)
+
+            // Also check for loose components at this level
+            if (directIcons > 0) {
+              // There are loose components outside the sub-frames
+              // Add them as a separate pack named after the frame
+              const catSuggestion = suggestCategory(node.name)
+              const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
+              frames.push({
+                id: node.id + '__loose',
+                name: node.name + ' (other)',
+                iconCount: directIcons,
+                suggestedCategory: category,
+                suggestedStyle: effectiveStyle,
+              })
+            }
+          } else if (directIcons > 0) {
+            // This frame directly contains components and no significant sub-frames
+            // → it's a pack candidate
+            const catSuggestion = suggestCategory(node.name)
+            const category = catSuggestion.confidence > 0 ? catSuggestion.category : suggestCategoryFromChildren(node)
             frames.push({
               id: node.id,
               name: node.name,
               iconCount: directIcons,
-              suggestedCategory: suggestion.category,
+              suggestedCategory: category,
+              suggestedStyle: effectiveStyle,
             })
           } else {
-            // No direct icons → recurse deeper (nested frames)
-            const deeper = findIconFrames(node.children)
+            // No direct icons and no sub-frames with icons → recurse deeper
+            const deeper = findIconFrames(node.children, effectiveStyle)
             frames.push(...deeper)
           }
         } else if (node.type === 'GROUP' && node.children) {
-          const deeper = findIconFrames(node.children)
+          const deeper = findIconFrames(node.children, parentStyle)
           frames.push(...deeper)
         } else if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
           // Icons directly on the page (not inside a frame)
-          // Wrap them into a virtual "page" frame
           const existing = frames.find(f => f.id === '__page__')
           if (node.type === 'COMPONENT_SET' && node.children) {
             const count = node.children.filter(c => c.type === 'COMPONENT').length
             if (existing) existing.iconCount += count
-            else frames.push({ id: '__page__', name: 'Page Icons', iconCount: count, suggestedCategory: 'uncategorized' })
+            else frames.push({ id: '__page__', name: 'Page Icons', iconCount: count, suggestedCategory: 'uncategorized', suggestedStyle: parentStyle || 'outline' })
           } else {
             if (existing) existing.iconCount += 1
-            else frames.push({ id: '__page__', name: 'Page Icons', iconCount: 1, suggestedCategory: 'uncategorized' })
+            else frames.push({ id: '__page__', name: 'Page Icons', iconCount: 1, suggestedCategory: 'uncategorized', suggestedStyle: parentStyle || 'outline' })
           }
         }
       }
@@ -179,7 +307,8 @@ export async function GET(req: NextRequest) {
       if (page.type !== 'CANVAS') continue
       if (!page.children || page.children.length === 0) continue
 
-      const frameDetails = findIconFrames(page.children)
+      const pageStyle = suggestStyle(page.name)
+      const frameDetails = findIconFrames(page.children, pageStyle)
       if (frameDetails.length === 0) continue
 
       const totalIcons = frameDetails.reduce((s, f) => s + f.iconCount, 0)
@@ -191,6 +320,7 @@ export async function GET(req: NextRequest) {
         iconCount: totalIcons,
         frames: frameDetails,
         suggestedCategory: pageSuggestion.category,
+        suggestedStyle: pageStyle,
       })
     }
 
@@ -238,7 +368,7 @@ export async function POST(req: NextRequest) {
       style?: string
       packNameRu?: string
       packNameEn?: string
-      frames?: Array<{ id: string; name: string; category: string; enabled: boolean; pageName: string }>
+      frames?: Array<{ id: string; name: string; category: string; style: string; enabled: boolean; pageName: string }>
     }
 
     if (!figmaToken || !fileKey) {
@@ -300,6 +430,7 @@ export async function POST(req: NextRequest) {
       nodeIds: string[]
       nodeNames: Map<string, string>
       packCategory: string
+      packStyle: string
     }> = []
 
     function collectIconNodes(nodes: FigmaNode[], target: Map<string, string>) {
@@ -349,6 +480,7 @@ export async function POST(req: NextRequest) {
           nodeIds: Array.from(nodeMap.keys()),
           nodeNames: nodeMap,
           packCategory: category || 'system',
+          packStyle: style || 'outline',
         })
       }
     } else {
@@ -394,6 +526,7 @@ export async function POST(req: NextRequest) {
             nodeIds: Array.from(nodeMap.keys()),
             nodeNames: nodeMap,
             packCategory: fc.category,
+            packStyle: fc.style || style || 'outline',
           })
         }
       }
@@ -483,10 +616,10 @@ export async function POST(req: NextRequest) {
             slug: finalSlug,
             nameRu: pack.frameName,
             nameEn: pack.frameName,
-            descRu: `Импортировано из Figma: ${fileName}, фрейм "${pack.frameName}" (категория: ${catLabel})`,
-            descEn: `Imported from Figma: ${fileName}, frame "${pack.frameName}" (category: ${catLabel})`,
+            descRu: `Импортировано из Figma: ${fileName}, фрейм "${pack.frameName}" (категория: ${catLabel}, стиль: ${pack.packStyle})`,
+            descEn: `Imported from Figma: ${fileName}, frame "${pack.frameName}" (category: ${catLabel}, style: ${pack.packStyle})`,
             category: pack.packCategory,
-            style: style || 'outline',
+            style: pack.packStyle,
             tags: icons.slice(0, 20).map(i => i.slug.split('-').pop()).join(','),
             isFree: true,
             priceCredits: 10,
