@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+// ── Retry helper for Figma API (handles 429 rate-limit) ──
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const res = await fetch(url, options)
+    if (res.status !== 429) return res
+    // Parse Retry-After header or use exponential backoff
+    const retryAfter = res.headers.get('Retry-After')
+    const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.min(1000 * Math.pow(2, attempt), 15000)
+    console.warn(`[figma-import] Rate limited (429), retrying in ${waitMs}ms (attempt ${attempt + 1}/${maxRetries})`)
+    await new Promise(r => setTimeout(r, waitMs))
+  }
+  // Final attempt
+  return fetch(url, options)
+}
+
 // ── Shared types ──────────────────────────────────────
 interface FigmaNode {
   id: string
@@ -221,7 +236,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch Figma file document
     console.log(`[figma-import/preview] Fetching file: ${fileKey}`)
-    const fileRes = await fetch(`https://api.figma.com/v1/files/${fileKey}`, {
+    const fileRes = await fetchWithRetry(`https://api.figma.com/v1/files/${fileKey}`, {
       headers: { 'X-Figma-Token': figmaToken },
     })
 
@@ -231,6 +246,9 @@ export async function GET(req: NextRequest) {
       }
       if (fileRes.status === 404) {
         return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
+      }
+      if (fileRes.status === 429) {
+        return NextResponse.json({ error: 'Figma API: слишком много запросов. Подождите минуту и попробуйте снова.' }, { status: 429 })
       }
       return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
     }
@@ -639,7 +657,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch Figma file document
     console.log(`[figma-import] Fetching file: ${fileKey}`)
-    const fileRes = await fetch(`https://api.figma.com/v1/files/${fileKey}`, {
+    const fileRes = await fetchWithRetry(`https://api.figma.com/v1/files/${fileKey}`, {
       headers: { 'X-Figma-Token': figmaToken },
     })
 
@@ -651,6 +669,9 @@ export async function POST(req: NextRequest) {
       }
       if (fileRes.status === 404) {
         return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
+      }
+      if (fileRes.status === 429) {
+        return NextResponse.json({ error: 'Figma API: слишком много запросов. Подождите минуту и попробуйте снова.' }, { status: 429 })
       }
       return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
     }
@@ -869,7 +890,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[figma-import] Fetching SVGs batch ${Math.floor(i / SVG_BATCH_SIZE) + 1} for frame "${pack.frameName}" (${batch.length} icons)`)
 
-        const imgRes = await fetch(
+        const imgRes = await fetchWithRetry(
           `https://api.figma.com/v1/images/${fileKey}?ids=${idsParam}&format=svg&svg_include_id_attribute=false`,
           { headers: { 'X-Figma-Token': figmaToken } },
         )

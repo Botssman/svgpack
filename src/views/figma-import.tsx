@@ -101,7 +101,12 @@ export function FigmaImportPanel() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast({ title: data.error || 'Ошибка получения структуры файла' })
+        const errMsg = data.error || 'Ошибка получения структуры файла'
+        if (res.status === 429) {
+          toast({ title: lang === 'ru' ? 'Figma API: лимит запросов. Подождите 1-2 минуты и попробуйте снова.' : 'Figma API: rate limited. Wait 1-2 minutes and try again.', variant: 'destructive' })
+        } else {
+          toast({ title: errMsg })
+        }
         setLoading(false)
         return
       }
