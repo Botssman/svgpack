@@ -37,11 +37,12 @@ type FrameConfig = {
 }
 
 const STYLES = [
-  { slug: 'outline', label: 'Outline', hint: 'thin / line / stroke' },
-  { slug: 'filled', label: 'Filled', hint: 'solid / bold / heavy' },
-  { slug: 'duotone', label: 'Duotone', hint: 'two-tone / dual' },
-  { slug: 'brand', label: 'Brand', hint: 'logos & social' },
+  { slug: 'outline', label: 'Outline', hint: 'regular / line / stroke' },
+  { slug: 'filled', label: 'Filled', hint: 'solid / bold / fill' },
+  { slug: 'duotone', label: 'Duotone', hint: 'two-tone / color' },
   { slug: 'thin', label: 'Thin', hint: 'light / ultra-thin' },
+  { slug: 'cute', label: 'Cute', hint: 'kawaii style' },
+  { slug: 'brand', label: 'Brand', hint: 'logos & social' },
 ]
 
 /**
@@ -243,8 +244,8 @@ export function FigmaImportPanel() {
             </h3>
             <p className="text-sm text-slate-500 mt-1">
               {lang === 'ru'
-                ? 'Импортируйте иконки напрямую из Figma-файла. Каждый фрейм с иконками станет отдельным паком. Стиль и категория определяются автоматически.'
-                : 'Import icons directly from a Figma file. Each frame with icons becomes a separate pack. Style and category are auto-detected.'}
+                ? 'Импортируйте иконки из Figma. Иконки автоматически группируются по категориям (из имён "Category / Icon Name") и стилям (из названия страницы). Каждый стиль + категория = отдельный пак.'
+                : 'Import icons from Figma. Icons are auto-grouped by category (from "Category / Icon Name" naming) and style (from page name). Each style + category = separate pack.'}
             </p>
           </div>
 
