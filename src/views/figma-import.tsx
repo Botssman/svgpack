@@ -84,14 +84,17 @@ export function FigmaImportPanel() {
   // Rate-limit retry countdown
   const [retryCountdown, setRetryCountdown] = useState(0)
   const retryIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const retryAttemptRef = useRef(0)
+  const MAX_AUTO_RETRIES = 2
 
   // Auto-retry when countdown reaches 0
   useEffect(() => {
     if (retryCountdown === 0 && retryIntervalRef.current) {
       clearInterval(retryIntervalRef.current)
       retryIntervalRef.current = null
-      // Auto-retry only if we have credentials
-      if (figmaToken && fileUrl) {
+      // Auto-retry only if we haven't exceeded max attempts
+      if (figmaToken && fileUrl && retryAttemptRef.current < MAX_AUTO_RETRIES) {
+        retryAttemptRef.current += 1
         handlePreview()
       }
     }
@@ -110,6 +113,8 @@ export function FigmaImportPanel() {
       return
     }
 
+    // Reset retry counter on manual click
+    retryAttemptRef.current = 0
     setLoading(true)
     try {
       const params = new URLSearchParams({ figmaToken, fileKey, debug: '1' })
@@ -120,9 +125,9 @@ export function FigmaImportPanel() {
         const errMsg = data.error || 'Ошибка получения структуры файла'
         if (res.status === 429) {
           toast({ title: errMsg, variant: 'destructive' })
-          // Auto-retry after 30s
+          // Auto-retry after 60s (Figma rate limit window is 60s)
           if (retryIntervalRef.current) clearInterval(retryIntervalRef.current)
-          setRetryCountdown(30)
+          setRetryCountdown(60)
           retryIntervalRef.current = setInterval(() => {
             setRetryCountdown(prev => {
               if (prev <= 1) return 0
@@ -343,7 +348,7 @@ export function FigmaImportPanel() {
               {loading
                 ? (lang === 'ru' ? 'Загрузка структуры...' : 'Loading structure...')
                 : retryCountdown > 0
-                  ? (lang === 'ru' ? `Подождите ${retryCountdown}с...` : `Wait ${retryCountdown}s...`)
+                  ? (lang === 'ru' ? `Повтор через ${retryCountdown}с` : `Retry in ${retryCountdown}s`)
                   : (lang === 'ru' ? 'Предпросмотр файла' : 'Preview File')
               }
             </button>
