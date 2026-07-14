@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast'
 import { IconGenerator } from '@/views/icon-generator'
 import { ImportPanel } from '@/views/import-panel'
 import { FigmaImportPanel } from '@/views/figma-import'
+import { CategoriesPanel } from '@/views/categories-panel'
 
 type UploadedIcon = {
   slug: string
@@ -28,7 +29,7 @@ export function Admin() {
   const { t, lang } = useI18n()
   const { toast } = useToast()
   const { user } = useUser()
-  const [activeTab, setActiveTab] = useState<'packs' | 'generator' | 'batch' | 'import' | 'figma'>('packs')
+  const [activeTab, setActiveTab] = useState<'packs' | 'generator' | 'batch' | 'import' | 'figma' | 'categories'>('packs')
   const [stats, setStats] = useState({ packs: 0, icons: 0, users: 0, revenue: 0 })
   const [packs, setPacks] = useState<Pack[]>([])
   const [selectedPack, setSelectedPack] = useState<Pack | null>(null)
@@ -234,7 +235,17 @@ export function Admin() {
               : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
           }`}
         >
-          🎨 Figma
+          Figma
+        </button>
+        <button
+          onClick={() => setActiveTab('categories')}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === 'categories'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          {lang === 'ru' ? 'Категории' : 'Categories'}
         </button>
       </div>
 
@@ -245,6 +256,8 @@ export function Admin() {
         <BatchGenerator />
       ) : activeTab === 'figma' ? (
         <FigmaImportPanel />
+      ) : activeTab === 'categories' ? (
+        <CategoriesPanel />
       ) : activeTab === 'import' ? (
         <ImportPanel />
       ) : (<>

@@ -5,7 +5,6 @@ import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useBuild } from '@/lib/build-store'
 import { useToast } from '@/hooks/use-toast'
-import { CATEGORIES } from '@/lib/categories'
 
 type PackInfo = {
   id: string
@@ -43,6 +42,13 @@ export function IconCatalog() {
   const [category, setCategory] = useState('')
   const [style, setStyle] = useState('')
   const limit = 60
+
+  // Categories from API
+  const [dbCategories, setDbCategories] = useState<Array<{ slug: string; nameRu: string; nameEn: string }>>([])
+
+  useEffect(() => {
+    fetch('/api/categories').then(r => r.json()).then(d => setDbCategories(d.categories || [])).catch(() => {})
+  }, [])
 
   // Debounced search
   const [searchInput, setSearchInput] = useState('')
@@ -105,7 +111,7 @@ export function IconCatalog() {
   }
 
   const getCategoryName = (slug: string) => {
-    const cat = CATEGORIES.find(c => c.slug === slug)
+    const cat = dbCategories.find(c => c.slug === slug)
     return cat ? (lang === 'ru' ? cat.nameRu : cat.nameEn) : slug
   }
 
@@ -153,7 +159,7 @@ export function IconCatalog() {
           className="px-3 py-2.5 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
         >
           <option value="">{lang === 'ru' ? 'Все категории' : 'All categories'}</option>
-          {CATEGORIES.map(c => (
+          {dbCategories.map(c => (
             <option key={c.slug} value={c.slug}>{lang === 'ru' ? c.nameRu : c.nameEn}</option>
           ))}
         </select>

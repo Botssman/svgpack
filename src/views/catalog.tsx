@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useI18n } from '@/lib/i18n'
 import { IconView } from '@/components/icon-view'
 import { useToast } from '@/hooks/use-toast'
-import { CATEGORIES } from '@/lib/categories'
 
 type Pack = {
   id: string
@@ -45,6 +44,16 @@ export function Catalog() {
   const [style, setStyle] = useState('')
   const [isFree, setIsFree] = useState<'' | 'true' | 'false'>('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Categories from API
+  const [dbCategories, setDbCategories] = useState<Array<{ slug: string; nameRu: string; nameEn: string }>>([])
+
+  useEffect(() => {
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(d => setDbCategories(d.categories || []))
+      .catch(() => {})
+  }, [])
 
   const limit = 12
 
@@ -128,13 +137,12 @@ export function Catalog() {
   }, [category, q, style, isFree, page, limit, retryCount])
 
   const categories = useMemo(() => [
-    { id: 'all', label: t.catalog.filterAll, icon: '📦' },
-    ...CATEGORIES.map((c) => ({
+    { id: 'all', label: t.catalog.filterAll },
+    ...dbCategories.map((c) => ({
       id: c.slug,
       label: lang === 'ru' ? c.nameRu : c.nameEn,
-      icon: c.icon,
     })),
-  ], [lang, t])
+  ], [lang, t, dbCategories])
 
   const handleDownload = (slug: string) => {
     window.open(`/api/download/pack?slug=${slug}`, '_blank')
@@ -285,7 +293,6 @@ export function Catalog() {
                           : 'text-neutral-700 hover:bg-neutral-100'
                       }`}
                     >
-                      <span className="text-base leading-none">{c.icon}</span>
                       <span>{c.label}</span>
                     </button>
                   ))}

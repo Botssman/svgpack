@@ -135,6 +135,18 @@ model CustomPackIcon {
   customIcon   CustomIcon? @relation(fields: [customIconId], references: [id], onDelete: Cascade)
 }
 
+model Category {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  nameRu    String
+  nameEn    String
+  descRu    String   @default("")
+  descEn    String   @default("")
+  sortOrder Int      @default(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model UserPalette {
   id          String   @id @default(cuid())
   userId      String

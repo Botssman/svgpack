@@ -1,8 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/hooks/use-toast'
-import { CATEGORIES } from '@/lib/categories'
 
 /**
  * Admin Import Panel — two sub-tabs:
@@ -13,7 +12,6 @@ import { CATEGORIES } from '@/lib/categories'
  */
 export function ImportPanel() {
   const { lang } = useI18n()
-  const { toast } = useToast()
   const [subTab, setSubTab] = useState<'zip' | 'tabler'>('zip')
 
   return (
@@ -60,6 +58,11 @@ function ZipImport() {
   const [category, setCategory] = useState('system')
   const [style, setStyle] = useState('outline')
   const [creating, setCreating] = useState(false)
+  const [dbCategories, setDbCategories] = useState<Array<{ slug: string; nameRu: string; nameEn: string }>>([])
+
+  useEffect(() => {
+    fetch('/api/categories').then(r => r.json()).then(d => setDbCategories(d.categories || [])).catch(() => {})
+  }, [])
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -167,7 +170,7 @@ function ZipImport() {
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">{lang === 'ru' ? 'Категория' : 'Category'}</label>
               <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-3 py-2 rounded-md border border-slate-200 text-sm bg-white">
-                {CATEGORIES.map(c => (
+                {dbCategories.map(c => (
                   <option key={c.slug} value={c.slug}>{lang === 'ru' ? c.nameRu : c.nameEn}</option>
                 ))}
               </select>
