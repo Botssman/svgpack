@@ -76,6 +76,10 @@ export function FigmaImportPanel() {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<any>(null)
 
+  // Debug
+  const [debugTree, setDebugTree] = useState<any>(null)
+  const [showDebug, setShowDebug] = useState(false)
+
   const extractFileKey = (url: string): string => {
     const match = url.match(/figma\.com\/(?:file|design|proto|community)\/([A-Za-z0-9]+)/)
     return match ? match[1] : url.trim()
@@ -91,7 +95,7 @@ export function FigmaImportPanel() {
 
     setLoading(true)
     try {
-      const params = new URLSearchParams({ figmaToken, fileKey })
+      const params = new URLSearchParams({ figmaToken, fileKey, debug: '1' })
       const res = await fetch(`/api/admin/figma-import?${params}`)
       const data = await res.json()
 
@@ -105,6 +109,7 @@ export function FigmaImportPanel() {
       setTotalIcons(data.totalIcons)
       setPages(data.pages || [])
       setCategories(data.categories || [])
+      setDebugTree(data.debugTree || null)
 
       // Initialize frame configs — each frame is a potential pack
       const configs: FrameConfig[] = []
@@ -528,7 +533,27 @@ export function FigmaImportPanel() {
                 : `Import ${enabledCount} frames → ${enabledCount} packs (${enabledIcons} icons)`
               }
             </button>
+            {debugTree && (
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className="px-4 py-2.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-medium hover:bg-amber-100 transition-colors"
+              >
+                🐛 {showDebug ? (lang === 'ru' ? 'Скрыть структуру' : 'Hide structure') : (lang === 'ru' ? 'Структура Figma' : 'Figma Structure')}
+              </button>
+            )}
           </div>
+
+          {/* Debug: Figma node tree */}
+          {showDebug && debugTree && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <h4 className="text-sm font-semibold text-amber-800 mb-2">
+                🐛 {lang === 'ru' ? 'Структура дерева Figma (debug)' : 'Figma Node Tree (debug)'}
+              </h4>
+              <pre className="text-xs font-mono text-amber-900 bg-white rounded-lg p-3 border border-amber-200 overflow-auto max-h-96 whitespace-pre-wrap">
+                {JSON.stringify(debugTree, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       )}
 

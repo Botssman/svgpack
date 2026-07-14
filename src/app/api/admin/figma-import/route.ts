@@ -565,6 +565,39 @@ export async function GET(req: NextRequest) {
       return frames
     }
 
+    // ── Debug: dump simplified node tree ──
+    const isDebug = searchParams.get('debug') === '1'
+
+    function dumpNodeTree(node: FigmaNode, depth: number = 0): any {
+      const indent = '  '.repeat(depth)
+      const iconCount = countAllIconsInNode(node)
+      const directIcons = node.children ? countIconsInNodes(node.children) : 0
+      const childContainers = node.children ? countChildContainersWithIcons(node) : 0
+
+      const result: any = {
+        name: node.name,
+        type: node.type,
+        id: node.id,
+      }
+
+      if (iconCount > 0) result.totalIcons = iconCount
+      if (directIcons > 0) result.directIcons = directIcons
+      if (childContainers > 0) result.childContainers = childContainers
+
+      if (node.children && node.children.length > 0) {
+        result.childCount = node.children.length
+        // Only recurse for FRAME and GROUP types, and limit depth
+        if (depth < 4 && (node.type === 'CANVAS' || node.type === 'FRAME' || node.type === 'GROUP')) {
+          result.children = node.children
+            .filter(c => c.type === 'CANVAS' || c.type === 'FRAME' || c.type === 'GROUP' || c.type === 'COMPONENT' || c.type === 'COMPONENT_SET')
+            .slice(0, 30) // Limit to first 30 children
+            .map(c => dumpNodeTree(c, depth + 1))
+        }
+      }
+
+      return result
+    }
+
     // ── Build pages with frames ──
     const pages: PageInfo[] = []
     const canvasPages = document.children || []
@@ -592,7 +625,7 @@ export async function GET(req: NextRequest) {
 
     const totalIcons = pages.reduce((s, p) => s + p.iconCount, 0)
 
-    return NextResponse.json({
+    const response: any = {
       ok: true,
       fileName,
       totalIcons,
@@ -603,7 +636,16 @@ export async function GET(req: NextRequest) {
         nameRu: c.nameRu,
         nameEn: c.nameEn,
       })),
-    })
+    }
+
+    // Add debug tree when ?debug=1
+    if (isDebug) {
+      response.debugTree = canvasPages
+        .filter((p: FigmaNode) => p.type === 'CANVAS')
+        .map((p: FigmaNode) => dumpNodeTree(p, 0))
+    }
+
+    return NextResponse.json(response)
   } catch (e: any) {
     console.error('[/api/admin/figma-import GET] ERROR:', e?.message || e)
     return NextResponse.json(
