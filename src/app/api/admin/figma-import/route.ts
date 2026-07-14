@@ -230,6 +230,9 @@ export async function GET(req: NextRequest) {
     const fileRes = await fetchFigmaApi(`https://api.figma.com/v1/files/${fileKey}`, figmaToken)
 
     if (!fileRes.ok) {
+      let errBody = ''
+      try { errBody = await fileRes.text() } catch {}
+      console.error(`[figma-import/preview] Figma API error ${fileRes.status}:`, errBody.substring(0, 500))
       if (fileRes.status === 403) {
         return NextResponse.json({ error: 'Неверный Figma Token или нет доступа к файлу' }, { status: 403 })
       }
@@ -237,9 +240,9 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
       }
       if (fileRes.status === 429) {
-        return NextResponse.json({ error: 'Figma API: лимит запросов. Подождите 1-2 минуты и попробуйте снова.' }, { status: 429 })
+        return NextResponse.json({ error: `Figma API: лимит запросов (429). Ответ: ${errBody.substring(0, 200)}` }, { status: 429 })
       }
-      return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
+      return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status} — ${errBody.substring(0, 200)}` }, { status: 500 })
     }
 
     const fileData = await fileRes.json()

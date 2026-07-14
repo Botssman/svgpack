@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/hooks/use-toast'
 
@@ -81,6 +81,22 @@ export function FigmaImportPanel() {
   const [debugTree, setDebugTree] = useState<any>(null)
   const [showDebug, setShowDebug] = useState(false)
 
+  // Rate-limit retry countdown
+  const [retryCountdown, setRetryCountdown] = useState(0)
+  const retryIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Auto-retry when countdown reaches 0
+  useEffect(() => {
+    if (retryCountdown === 0 && retryIntervalRef.current) {
+      clearInterval(retryIntervalRef.current)
+      retryIntervalRef.current = null
+      // Auto-retry only if we have credentials
+      if (figmaToken && fileUrl) {
+        handlePreview()
+      }
+    }
+  }, [retryCountdown]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const extractFileKey = (url: string): string => {
     const match = url.match(/figma\.com\/(?:file|design|proto|community)\/([A-Za-z0-9]+)/)
     return match ? match[1] : url.trim()
@@ -103,7 +119,16 @@ export function FigmaImportPanel() {
       if (!res.ok) {
         const errMsg = data.error || 'Ошибка получения структуры файла'
         if (res.status === 429) {
-          toast({ title: lang === 'ru' ? 'Figma API: лимит запросов. Подождите 1-2 минуты и попробуйте снова.' : 'Figma API: rate limited. Wait 1-2 minutes and try again.', variant: 'destructive' })
+          toast({ title: errMsg, variant: 'destructive' })
+          // Auto-retry after 30s
+          if (retryIntervalRef.current) clearInterval(retryIntervalRef.current)
+          setRetryCountdown(30)
+          retryIntervalRef.current = setInterval(() => {
+            setRetryCountdown(prev => {
+              if (prev <= 1) return 0
+              return prev - 1
+            })
+          }, 1000)
         } else {
           toast({ title: errMsg })
         }
@@ -309,16 +334,25 @@ export function FigmaImportPanel() {
           </div>
 
           {/* Preview button */}
-          <button
-            onClick={handlePreview}
-            disabled={loading || !figmaToken || !fileUrl}
-            className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading
-              ? (lang === 'ru' ? 'Загрузка структуры...' : 'Loading structure...')
-              : (lang === 'ru' ? 'Предпросмотр файла' : 'Preview File')
-            }
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePreview}
+              disabled={loading || !figmaToken || !fileUrl || retryCountdown > 0}
+              className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading
+                ? (lang === 'ru' ? 'Загрузка структуры...' : 'Loading structure...')
+                : retryCountdown > 0
+                  ? (lang === 'ru' ? `Подождите ${retryCountdown}с...` : `Wait ${retryCountdown}s...`)
+                  : (lang === 'ru' ? 'Предпросмотр файла' : 'Preview File')
+              }
+            </button>
+            {retryCountdown > 0 && (
+              <span className="text-xs text-amber-600">
+                {lang === 'ru' ? 'Figma API: лимит запросов, ожидание...' : 'Figma API: rate limited, waiting...'}
+              </span>
+            )}
+          </div>
 
           {/* Help section */}
           <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
