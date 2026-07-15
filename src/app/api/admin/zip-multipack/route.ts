@@ -165,22 +165,10 @@ function parseSvgIcon(
   if (innerMatch) innerSvg = innerMatch[1].trim()
   else innerSvg = svgContent.trim()
 
-  // Auto-detect viewBox from coordinates
-  const vbParts = viewBox.split(/[\s,]+/).map(Number)
-  if (vbParts.length === 4 && !isNaN(vbParts[2]) && !isNaN(vbParts[3])) {
-    const maxCoord = vbParts[2]
-    const coordMatches = innerSvg.match(/[\d.]+/g)
-    if (coordMatches) {
-      const nums = coordMatches.map(Number).filter(n => !isNaN(n) && n > 1)
-      if (nums.length > 0) {
-        const actualMax = Math.max(...nums)
-        if (actualMax > maxCoord * 1.5) {
-          const scale = Math.ceil(actualMax / 10) * 10
-          viewBox = `0 0 ${scale} ${scale}`
-        }
-      }
-    }
-  }
+  // NOTE: The old auto-detect viewBox logic was broken — it extracted numbers
+  // from clip-path IDs (e.g. clip0_1_27641 → 27641) and inflated viewBox to
+  // absurd values like "0 0 292930 292930". Removed entirely.
+  // We trust the viewBox attribute from the SVG, or width/height, or default 0 0 24 24.
 
   // Parse filename
   let slugPart = rawName
@@ -190,6 +178,9 @@ function parseSvgIcon(
     slugPart = parts[0]
     ruFromFilename = parts.slice(1).join('--').trim()
   }
+
+  // Strip Figma export size suffixes like "192x192", "24x24", "1.5x" etc.
+  slugPart = slugPart.replace(/\s*\d+(\.\d+)?x\d+(\.\d+)?$/i, '').trim()
 
   // Check <title> tag
   let ruFromTitle: string | undefined
@@ -503,6 +494,16 @@ async function handleCreatePacks(req: NextRequest) {
 
       const finalSlug = await ensureUniqueSlug(`zip-${frameSlug}`)
 
+      // Strip fields that don't exist in Prisma Icon schema (folder, prefix)
+      const cleanIcons = group.icons.map(({ slug, nameRu, nameEn, keywords, svg, viewBox }) => ({
+        slug, nameRu, nameEn, keywords, svg, viewBox
+      }))
+
+      // Build meaningful tags from icon keywords
+      const allKeywords = [...new Set(
+        cleanIcons.flatMap(i => (i.keywords || '').split(/,\s*/).filter(k => k.length > 1))
+      )].slice(0, 15).join(', ')
+
       try {
         const created = await db.pack.create({
           data: {
@@ -513,10 +514,10 @@ async function handleCreatePacks(req: NextRequest) {
             descEn: `Imported from ZIP, category "${group.name}" (${group.category}, ${group.style})`,
             category: group.category,
             style: group.style,
-            tags: group.icons.slice(0, 20).map(i => i.slug.split('-').pop()).join(','),
+            tags: allKeywords,
             isFree: true,
             priceCredits: 10,
-            icons: { create: group.icons },
+            icons: { create: cleanIcons },
           },
           include: { _count: { select: { icons: true } } },
         })
