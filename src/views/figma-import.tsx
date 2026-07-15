@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { useToast } from '@/hooks/use-toast'
 
@@ -81,29 +81,46 @@ export function FigmaImportPanel() {
   const [debugTree, setDebugTree] = useState<any>(null)
   const [showDebug, setShowDebug] = useState(false)
 
-  // Rate-limit retry countdown
-  const [retryCountdown, setRetryCountdown] = useState(0)
-  const retryIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const retryAttemptRef = useRef(0)
-  const MAX_AUTO_RETRIES = 2
-
-  // Auto-retry when countdown reaches 0
-  useEffect(() => {
-    if (retryCountdown === 0 && retryIntervalRef.current) {
-      clearInterval(retryIntervalRef.current)
-      retryIntervalRef.current = null
-      // Auto-retry only if we haven't exceeded max attempts
-      if (figmaToken && fileUrl && retryAttemptRef.current < MAX_AUTO_RETRIES) {
-        retryAttemptRef.current += 1
-        handlePreview()
-      }
-    }
-  }, [retryCountdown]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Rate-limit state
+  const [rateLimited, setRateLimited] = useState(false)
+  const [testingToken, setTestingToken] = useState(false)
+  const [tokenTestResult, setTokenTestResult] = useState<string | null>(null)
 
   const extractFileKey = (url: string): string => {
     const match = url.match(/figma\.com\/(?:file|design|proto|community)\/([A-Za-z0-9]+)/)
     return match ? match[1] : url.trim()
   }
+
+  // Test Figma token with lightweight /v1/me endpoint
+  const handleTestToken = useCallback(async () => {
+    if (!figmaToken) {
+      toast({ title: lang === 'ru' ? 'Введите Token' : 'Enter Token' })
+      return
+    }
+    setTestingToken(true)
+    setTokenTestResult(null)
+    try {
+      const res = await fetch(`https://api.figma.com/v1/me`, {
+        headers: { 'X-Figma-Token': figmaToken },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setTokenTestResult(`✅ ${lang === 'ru' ? 'Токен работает' : 'Token works'}: ${data.email || data.handle || 'OK'}`)
+        setRateLimited(false)
+      } else if (res.status === 429) {
+        setTokenTestResult('❌ 429 Rate Limit — токен заблокирован Figma. Подождите несколько минут.')
+        setRateLimited(true)
+      } else if (res.status === 403) {
+        setTokenTestResult('❌ 403 — токен недействителен')
+      } else {
+        setTokenTestResult(`❌ Ошибка: ${res.status}`)
+      }
+    } catch {
+      setTokenTestResult('❌ Сетевая ошибка')
+    } finally {
+      setTestingToken(false)
+    }
+  }, [figmaToken, lang])
 
   // Step 1 → 2: Fetch file structure
   const handlePreview = useCallback(async () => {
@@ -113,27 +130,19 @@ export function FigmaImportPanel() {
       return
     }
 
-    // Reset retry counter on manual click
-    retryAttemptRef.current = 0
+    // Reset rate limit flag on new attempt
+    setRateLimited(false)
     setLoading(true)
     try {
-      const params = new URLSearchParams({ figmaToken, fileKey, debug: '1' })
+      const params = new URLSearchParams({ figmaToken, fileKey })
       const res = await fetch(`/api/admin/figma-import?${params}`)
       const data = await res.json()
 
       if (!res.ok) {
         const errMsg = data.error || 'Ошибка получения структуры файла'
         if (res.status === 429) {
+          setRateLimited(true)
           toast({ title: errMsg, variant: 'destructive' })
-          // Auto-retry after 60s (Figma rate limit window is 60s)
-          if (retryIntervalRef.current) clearInterval(retryIntervalRef.current)
-          setRetryCountdown(60)
-          retryIntervalRef.current = setInterval(() => {
-            setRetryCountdown(prev => {
-              if (prev <= 1) return 0
-              return prev - 1
-            })
-          }, 1000)
         } else {
           toast({ title: errMsg })
         }
@@ -338,23 +347,36 @@ export function FigmaImportPanel() {
             </div>
           </div>
 
-          {/* Preview button */}
-          <div className="flex items-center gap-3">
+          {/* Preview & Test buttons */}
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={handlePreview}
-              disabled={loading || !figmaToken || !fileUrl || retryCountdown > 0}
+              disabled={loading || !figmaToken || !fileUrl}
               className="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading
                 ? (lang === 'ru' ? 'Загрузка структуры...' : 'Loading structure...')
-                : retryCountdown > 0
-                  ? (lang === 'ru' ? `Повтор через ${retryCountdown}с` : `Retry in ${retryCountdown}s`)
-                  : (lang === 'ru' ? 'Предпросмотр файла' : 'Preview File')
+                : (lang === 'ru' ? 'Предпросмотр файла' : 'Preview File')
               }
             </button>
-            {retryCountdown > 0 && (
+            <button
+              onClick={handleTestToken}
+              disabled={testingToken || !figmaToken}
+              className="px-4 py-2.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {testingToken
+                ? (lang === 'ru' ? 'Проверка...' : 'Testing...')
+                : (lang === 'ru' ? 'Проверить токен' : 'Test Token')
+              }
+            </button>
+            {tokenTestResult && (
+              <span className={`text-xs ${tokenTestResult.startsWith('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                {tokenTestResult}
+              </span>
+            )}
+            {rateLimited && (
               <span className="text-xs text-amber-600">
-                {lang === 'ru' ? 'Figma API: лимит запросов, ожидание...' : 'Figma API: rate limited, waiting...'}
+                {lang === 'ru' ? 'Лимит запросов. Подождите 2-3 минуты и нажмите «Проверить токен».' : 'Rate limited. Wait 2-3 min and click "Test Token".'}
               </span>
             )}
           </div>
