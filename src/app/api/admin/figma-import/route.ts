@@ -626,26 +626,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'figmaToken и fileKey обязательны' }, { status: 400 })
     }
 
-    // Validate categories against DB
+    // Validate & auto-create categories against DB
     const dbCategories = await db.category.findMany({ orderBy: { sortOrder: 'asc' } })
     const validSlugs = new Set(dbCategories.map(c => c.slug))
+    const maxSortOrder = dbCategories.length > 0 ? Math.max(...dbCategories.map(c => c.sortOrder)) : 0
+
+    // Auto-create missing categories from our keyword dictionary
+    const allNeededSlugs = new Set<string>()
+    if (category) allNeededSlugs.add(category)
+    if (frameConfig) {
+      for (const fc of frameConfig) {
+        allNeededSlugs.add(fc.category)
+      }
+    }
+    const missingSlugs = [...allNeededSlugs].filter(s => !validSlugs.has(s) && s !== 'uncategorized')
+    if (missingSlugs.length > 0) {
+      console.log(`[figma-import] Auto-creating missing categories: ${missingSlugs.join(', ')}`)
+      for (let i = 0; i < missingSlugs.length; i++) {
+        const slug = missingSlugs[i]
+        const catInfo = CATEGORY_KEYWORDS[slug]
+        await db.category.create({
+          data: {
+            slug,
+            nameRu: catInfo ? slug.charAt(0).toUpperCase() + slug.slice(1) : slug,
+            nameEn: catInfo ? slug.charAt(0).toUpperCase() + slug.slice(1) : slug,
+            descRu: '',
+            descEn: '',
+            sortOrder: maxSortOrder + 10 + i * 10,
+          },
+        })
+      }
+      // Refresh
+      const refreshed = await db.category.findMany({ orderBy: { sortOrder: 'asc' } })
+      refreshed.forEach(c => validSlugs.add(c.slug))
+    }
 
     // Legacy: single category mode
     const legacyMode = !frameConfig || frameConfig.length === 0
     if (legacyMode && !category) {
       return NextResponse.json({ error: 'Укажите category или массив frames' }, { status: 400 })
-    }
-
-    if (category && !validSlugs.has(category)) {
-      return NextResponse.json({ error: `Неизвестная категория: ${category}` }, { status: 400 })
-    }
-
-    if (frameConfig) {
-      for (const fc of frameConfig) {
-        if (!validSlugs.has(fc.category)) {
-          return NextResponse.json({ error: `Неизвестная категория: ${fc.category} для фрейма "${fc.name}"` }, { status: 400 })
-        }
-      }
     }
 
     // 1. Fetch Figma file document

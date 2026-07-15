@@ -91,7 +91,7 @@ export function FigmaImportPanel() {
     return match ? match[1] : url.trim()
   }
 
-  // Test Figma token + file access with lightweight requests
+  // Test Figma token + file access via server-side API (avoids client-side rate limiting)
   const handleTestToken = useCallback(async () => {
     if (!figmaToken) {
       toast({ title: lang === 'ru' ? 'Введите Token' : 'Enter Token' })
@@ -100,47 +100,54 @@ export function FigmaImportPanel() {
     setTestingToken(true)
     setTokenTestResult(null)
     try {
-      // Step 1: Test token validity
-      const meRes = await fetch(`https://api.figma.com/v1/me`, {
-        headers: { 'X-Figma-Token': figmaToken },
-      })
-      if (meRes.status === 429) {
-        setTokenTestResult('❌ 429 Rate Limit — полный лимит Figma. Подождите 5+ минут.')
-        setRateLimited(true)
-        setTestingToken(false)
-        return
-      }
-      if (!meRes.ok) {
-        setTokenTestResult(`❌ Токен недействителен (${meRes.status})`)
-        setTestingToken(false)
-        return
-      }
-      const meData = await meRes.json()
-
-      // Step 2: Test file access with depth=1 (minimal payload)
       const fileKey = extractFileKey(fileUrl)
-      if (!fileKey) {
-        setTokenTestResult(`✅ Токен работает: ${meData.email || meData.handle}`)
+      const params = new URLSearchParams({ figmaToken, ...(fileKey ? { fileKey } : {}) })
+      const res = await fetch(`/api/admin/figma-test?${params}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setTokenTestResult(`❌ Ошибка сервера: ${data.error || res.status}`)
+        setTestingToken(false)
+        return
+      }
+
+      // Parse results from server-side diagnostic
+      const me = data.me
+      const file = data.file_depth1
+
+      if (!me || !me.ok) {
+        if (me?.status === 429) {
+          setTokenTestResult('❌ 429 Rate Limit — полный лимит Figma. Подождите 5+ минут.')
+          setRateLimited(true)
+        } else {
+          setTokenTestResult(`❌ Токен недействителен (${me?.status || 'нет ответа'})`)
+        }
+        setTestingToken(false)
+        return
+      }
+
+      const email = me.data?.email || me.data?.handle || 'OK'
+
+      if (!fileKey || !file) {
+        setTokenTestResult(`✅ Токен работает: ${email}`)
         setRateLimited(false)
         setTestingToken(false)
         return
       }
-      const fileRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=1`, {
-        headers: { 'X-Figma-Token': figmaToken },
-      })
-      if (fileRes.status === 429) {
-        setTokenTestResult(`✅ Токен OK (${meData.email}), но ❌ 429 на /files/. Подождите 5+ мин.`)
+
+      if (file.status === 429) {
+        setTokenTestResult(`✅ Токен OK (${email}), но ❌ 429 на /files/. Подождите.`)
         setRateLimited(true)
-      } else if (fileRes.status === 403) {
+      } else if (file.status === 403) {
         setTokenTestResult(`✅ Токен OK, но ❌ нет доступа к файлу`)
-      } else if (fileRes.status === 404) {
-        setTokenTestResult(`✅ Токен OK, но ❌ файл не найден`)
-      } else if (fileRes.ok) {
-        const fData = await fileRes.json()
-        setTokenTestResult(`✅ Токен OK, файл: "${fData.name}". Можно загружать!`)
+      } else if (file.status === 404) {
+        setTokenTestResult(`✅ Токен OK, но ❌ файл не найден (проверьте URL)`)
+      } else if (file.ok) {
+        const fName = file.data?.name || 'OK'
+        setTokenTestResult(`✅ Токен OK, файл: "${fName}". Можно загружать!`)
         setRateLimited(false)
       } else {
-        setTokenTestResult(`✅ Токен OK, но ошибка файла: ${fileRes.status}`)
+        setTokenTestResult(`✅ Токен OK, но ошибка файла: ${file.status}`)
       }
     } catch {
       setTokenTestResult('❌ Сетевая ошибка')
