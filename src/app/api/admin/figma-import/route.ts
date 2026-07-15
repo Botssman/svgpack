@@ -667,28 +667,71 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Укажите category или массив frames' }, { status: 400 })
     }
 
-    // 1. Fetch Figma file document
-    console.log(`[figma-import] Fetching file: ${fileKey}`)
-    const fileRes = await fetchFigmaApi(`https://api.figma.com/v1/files/${fileKey}?depth=3`, figmaToken)
+    // 1. Fetch only the specific nodes we need (lighter than full file)
+    // Collect frame IDs from config
+    const frameIds = frameConfig?.map(fc => fc.id).filter(id => !id.includes('__')) || []
+    
+    let document: FigmaNode
+    let fileName: string
 
-    if (!fileRes.ok) {
-      const errText = await fileRes.text()
-      console.error(`[figma-import] Figma API error: ${fileRes.status}`, errText.substring(0, 200))
-      if (fileRes.status === 403) {
-        return NextResponse.json({ error: 'Неверный Figma Token или нет доступа к файлу' }, { status: 403 })
+    if (frameIds.length > 0 && frameIds.length <= 20) {
+      // Use lighter /nodes endpoint for targeted fetch
+      console.log(`[figma-import] Fetching ${frameIds.length} specific nodes via /nodes API`)
+      const nodesRes = await fetchFigmaApi(
+        `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${frameIds.join(',')}&depth=3`,
+        figmaToken,
+      )
+
+      if (!nodesRes.ok) {
+        // Fallback to full file fetch
+        console.log(`[figma-import] /nodes API failed (${nodesRes.status}), falling back to full file fetch`)
+        const fileRes = await fetchFigmaApi(`https://api.figma.com/v1/files/${fileKey}?depth=3`, figmaToken)
+        if (!fileRes.ok) {
+          const errText = await fileRes.text().catch(() => '')
+          if (fileRes.status === 429) {
+            return NextResponse.json({ error: 'Figma API: лимит запросов (429). Подождите 3-5 минут.' }, { status: 429 })
+          }
+          return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
+        }
+        const fileData = await fileRes.json()
+        document = fileData.document
+        fileName = fileData.name || 'Figma Import'
+      } else {
+        const nodesData = await nodesRes.json()
+        fileName = nodesData.name || 'Figma Import'
+        // Reconstruct a virtual document from nodes response
+        document = { id: '0:0', name: 'Document', type: 'DOCUMENT', children: [] }
+        for (const [nodeId, nodeWrapper] of Object.entries(nodesData.nodes || {})) {
+          const nw = nodeWrapper as any
+          if (nw?.document) {
+            document.children.push(nw.document)
+          }
+        }
       }
-      if (fileRes.status === 404) {
-        return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
+    } else {
+      // Full file fetch (many frames or legacy mode)
+      console.log(`[figma-import] Fetching full file: ${fileKey}`)
+      const fileRes = await fetchFigmaApi(`https://api.figma.com/v1/files/${fileKey}?depth=3`, figmaToken)
+
+      if (!fileRes.ok) {
+        const errText = await fileRes.text().catch(() => '')
+        console.error(`[figma-import] Figma API error: ${fileRes.status}`, errText.substring(0, 200))
+        if (fileRes.status === 403) {
+          return NextResponse.json({ error: 'Неверный Figma Token или нет доступа к файлу' }, { status: 403 })
+        }
+        if (fileRes.status === 404) {
+          return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
+        }
+        if (fileRes.status === 429) {
+          return NextResponse.json({ error: 'Figma API: лимит запросов (429). Подождите 3-5 минут.' }, { status: 429 })
+        }
+        return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
       }
-      if (fileRes.status === 429) {
-        return NextResponse.json({ error: 'Figma API: лимит запросов (429). Подождите 3-5 минут.' }, { status: 429 })
-      }
-      return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
+
+      const fileData = await fileRes.json()
+      document = fileData.document
+      fileName = fileData.name || 'Figma Import'
     }
-
-    const fileData = await fileRes.json()
-    const document = fileData.document
-    const fileName = fileData.name || 'Figma Import'
 
     console.log(`[figma-import] File: "${fileName}", pages: ${document.children?.length}`)
 
@@ -889,46 +932,67 @@ export async function POST(req: NextRequest) {
       }, { status: 400 })
     }
 
-    // 3. Batch-fetch SVG exports (max 200 IDs per request)
-    const SVG_BATCH_SIZE = 200
-    const allSvgMap = new Map<string, string>()
-
+    // 3. Batch-fetch SVG exports (max 500 IDs per Figma request)
+    // Collect ALL node IDs across packs first, then batch-export in one pass
+    const allNodeIds = new Set<string>()
     for (const pack of packsToCreate) {
-      for (let i = 0; i < pack.nodeIds.length; i += SVG_BATCH_SIZE) {
-        const batch = pack.nodeIds.slice(i, i + SVG_BATCH_SIZE)
-        const idsParam = batch.join(',')
+      for (const id of pack.nodeIds) allNodeIds.add(id)
+    }
+    const allNodeIdList = Array.from(allNodeIds)
+    const SVG_BATCH_SIZE = 500 // Figma max is 500
+    const allSvgMap = new Map<string, string>()
+    let svgExportErrors = 0
 
-        console.log(`[figma-import] Fetching SVGs batch ${Math.floor(i / SVG_BATCH_SIZE) + 1} for frame "${pack.frameName}" (${batch.length} icons)`)
+    console.log(`[figma-import] Exporting ${allNodeIdList.length} SVGs in ${Math.ceil(allNodeIdList.length / SVG_BATCH_SIZE)} batch(es)`)
 
-        const imgRes = await fetchFigmaApi(
-          `https://api.figma.com/v1/images/${fileKey}?ids=${idsParam}&format=svg&svg_include_id_attribute=false`,
-          figmaToken,
-        )
+    for (let i = 0; i < allNodeIdList.length; i += SVG_BATCH_SIZE) {
+      const batch = allNodeIdList.slice(i, i + SVG_BATCH_SIZE)
+      const idsParam = batch.join(',')
+      const batchNum = Math.floor(i / SVG_BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(allNodeIdList.length / SVG_BATCH_SIZE)
 
-        if (!imgRes.ok) {
-          console.error(`[figma-import] Image export error: ${imgRes.status}`)
-          continue
+      console.log(`[figma-import] Fetching SVGs batch ${batchNum}/${totalBatches} (${batch.length} icons)`)
+
+      const imgRes = await fetchFigmaApi(
+        `https://api.figma.com/v1/images/${fileKey}?ids=${idsParam}&format=svg&svg_include_id_attribute=false`,
+        figmaToken,
+      )
+
+      if (!imgRes.ok) {
+        const errText = await imgRes.text().catch(() => '')
+        console.error(`[figma-import] Image export error: ${imgRes.status}`, errText.substring(0, 200))
+        svgExportErrors += batch.length
+        // Wait before next batch to avoid rate limit
+        if (i + SVG_BATCH_SIZE < allNodeIdList.length) {
+          await new Promise(r => setTimeout(r, 2000))
         }
+        continue
+      }
 
-        const imgData = await imgRes.json()
-        const images = imgData.images || {}
+      const imgData = await imgRes.json()
+      const images = imgData.images || {}
 
-        for (const [nodeId, url] of Object.entries(images)) {
-          if (typeof url !== 'string' || !url) continue
-          try {
-            const svgRes = await fetch(url)
-            if (svgRes.ok) {
-              const svgText = await svgRes.text()
-              allSvgMap.set(nodeId, svgText)
-            }
-          } catch (e) {
-            console.error(`[figma-import] Failed to fetch SVG for ${nodeId}:`, e)
+      for (const [nodeId, url] of Object.entries(images)) {
+        if (typeof url !== 'string' || !url) continue
+        try {
+          const svgRes = await fetch(url)
+          if (svgRes.ok) {
+            const svgText = await svgRes.text()
+            allSvgMap.set(nodeId, svgText)
           }
+        } catch (e) {
+          console.error(`[figma-import] Failed to fetch SVG for ${nodeId}:`, e)
         }
+      }
+
+      // Wait 2s between batches to avoid rate limit
+      if (i + SVG_BATCH_SIZE < allNodeIdList.length) {
+        console.log(`[figma-import] Waiting 2s before next batch...`)
+        await new Promise(r => setTimeout(r, 2000))
       }
     }
 
-    console.log(`[figma-import] Downloaded ${allSvgMap.size} SVGs`)
+    console.log(`[figma-import] Downloaded ${allSvgMap.size} SVGs${svgExportErrors > 0 ? ` (${svgExportErrors} failed to export)` : ''}`)
 
     // 4. Parse SVGs and create packs
     const results: string[] = []
@@ -989,6 +1053,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       totalPacks: totalPacksCreated,
       totalIcons: totalIconsCreated,
+      svgExportErrors,
       fileName,
       results,
     })

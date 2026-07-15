@@ -250,10 +250,13 @@ export function FigmaImportPanel() {
       const data = await res.json()
 
       if (res.ok && data.ok) {
+        const warning = data.svgExportErrors > 0
+          ? ` (${data.svgExportErrors} SVG не скачались — лимит Figma)`
+          : ''
         toast({
           title: lang === 'ru'
-            ? `Импорт завершён: ${data.totalPacks} пак(ов), ${data.totalIcons} иконок`
-            : `Import complete: ${data.totalPacks} pack(s), ${data.totalIcons} icons`,
+            ? `Импорт: ${data.totalPacks} пак(ов), ${data.totalIcons} иконок${warning}`
+            : `Import: ${data.totalPacks} pack(s), ${data.totalIcons} icons${warning}`,
         })
         setImportResult(data)
       } else {
