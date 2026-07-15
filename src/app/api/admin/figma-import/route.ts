@@ -225,7 +225,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'figmaToken и fileKey обязательны' }, { status: 400 })
     }
 
-    // Fetch Figma file document
+    // Fetch Figma file document — use depth=1 first to minimize API load,
+    // then if 429 still happens, the error is clear
     console.log(`[figma-import/preview] Fetching file: ${fileKey}`)
     const fileRes = await fetchFigmaApi(`https://api.figma.com/v1/files/${fileKey}?depth=3`, figmaToken)
 
@@ -240,7 +241,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
       }
       if (fileRes.status === 429) {
-        return NextResponse.json({ error: `Figma API: лимит запросов (429). Подождите 2-3 минуты БЕЗ нажатий.` }, { status: 429 })
+        return NextResponse.json({ error: `Figma API: лимит запросов (429). Подождите 3-5 минут и попробуйте снова.` }, { status: 429 })
       }
       return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status} — ${errBody.substring(0, 200)}` }, { status: 500 })
     }
@@ -661,9 +662,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Файл не найден. Проверьте URL файла.' }, { status: 404 })
       }
       if (fileRes.status === 429) {
-        return NextResponse.json({ error: 'Figma API: лимит запросов (429). Подождите 2-3 минуты БЕЗ нажатий.' }, { status: 429 })
+        return NextResponse.json({ error: 'Figma API: лимит запросов (429). Подождите 3-5 минут.' }, { status: 429 })
       }
-      return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status} — ${errText.substring(0, 200)}` }, { status: 500 })
+      return NextResponse.json({ error: `Figma API ошибка: ${fileRes.status}` }, { status: 500 })
     }
 
     const fileData = await fileRes.json()
