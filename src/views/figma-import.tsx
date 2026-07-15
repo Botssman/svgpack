@@ -156,7 +156,7 @@ export function FigmaImportPanel() {
     }
   }, [figmaToken, fileUrl, lang])
 
-  // Step 1 → 2: Fetch file structure
+  // Step 1 → 2: Fetch file structure directly from Figma API (browser → Figma, bypassing Vercel rate limits)
   const handlePreview = useCallback(async () => {
     const fileKey = extractFileKey(fileUrl)
     if (!figmaToken || !fileKey) {
@@ -168,18 +168,49 @@ export function FigmaImportPanel() {
     setRateLimited(false)
     setLoading(true)
     try {
-      const params = new URLSearchParams({ figmaToken, fileKey })
-      const res = await fetch(`/api/admin/figma-import?${params}`)
-      const data = await res.json()
+      // Try direct Figma API call from browser (avoids Vercel server rate limits)
+      const figmaRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=3`, {
+        headers: { 'X-Figma-Token': figmaToken },
+      })
 
-      if (!res.ok) {
-        const errMsg = data.error || 'Ошибка получения структуры файла'
-        if (res.status === 429) {
-          setRateLimited(true)
-          toast({ title: errMsg, variant: 'destructive' })
-        } else {
-          toast({ title: errMsg })
-        }
+      if (figmaRes.status === 429) {
+        setRateLimited(true)
+        toast({ title: 'Figma API: лимит запросов (429). Подождите несколько минут.', variant: 'destructive' })
+        setLoading(false)
+        return
+      }
+
+      if (figmaRes.status === 403) {
+        toast({ title: lang === 'ru' ? 'Неверный Figma Token или нет доступа к файлу' : 'Invalid token or no file access' })
+        setLoading(false)
+        return
+      }
+
+      if (figmaRes.status === 404) {
+        toast({ title: lang === 'ru' ? 'Файл не найден. Проверьте URL.' : 'File not found. Check URL.' })
+        setLoading(false)
+        return
+      }
+
+      if (!figmaRes.ok) {
+        toast({ title: `Figma API ошибка: ${figmaRes.status}` })
+        setLoading(false)
+        return
+      }
+
+      // Got the file data — now send to our server for parsing
+      const figmaData = await figmaRes.json()
+
+      const serverRes = await fetch('/api/admin/figma-import', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ figmaData, fileKey }),
+      })
+
+      const data = await serverRes.json()
+
+      if (!serverRes.ok) {
+        toast({ title: data.error || 'Ошибка обработки структуры' })
         setLoading(false)
         return
       }
@@ -214,7 +245,7 @@ export function FigmaImportPanel() {
     }
   }, [figmaToken, fileUrl, defaultStyle, lang, toast])
 
-  // Step 2 → 3: Import selected frames
+  // Step 2 → 3: Import selected frames (browser fetches SVGs, server saves to DB)
   const handleImport = useCallback(async () => {
     const fileKey = extractFileKey(fileUrl)
     const enabledFrames = frameConfigs.filter(f => f.enabled)
@@ -229,6 +260,19 @@ export function FigmaImportPanel() {
     setStep(3)
 
     try {
+      // Step 1: Fetch file structure directly from browser
+      const figmaRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=3`, {
+        headers: { 'X-Figma-Token': figmaToken },
+      })
+      if (!figmaRes.ok) {
+        toast({ title: `Figma API ошибка: ${figmaRes.status}` })
+        setImportResult({ error: `Figma API: ${figmaRes.status}` })
+        setImporting(false)
+        return
+      }
+      const figmaData = await figmaRes.json()
+
+      // Step 2: Send to server for processing (structure parsing + SVG fetch + DB save)
       const res = await fetch('/api/admin/figma-import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -236,6 +280,7 @@ export function FigmaImportPanel() {
           figmaToken,
           fileKey,
           style: defaultStyle,
+          figmaData,
           frames: enabledFrames.map(f => ({
             id: f.id,
             name: f.name,

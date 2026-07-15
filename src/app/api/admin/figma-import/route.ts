@@ -593,6 +593,151 @@ export async function GET(req: NextRequest) {
 }
 
 /**
+ * PUT /api/admin/figma-import
+ * Parse Figma file structure that was fetched by the browser (no server-side Figma API call).
+ * Body: { figmaData: <Figma API file response>, fileKey: string }
+ */
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { figmaData, fileKey } = body as { figmaData: any; fileKey: string }
+
+    if (!figmaData || !fileKey) {
+      return NextResponse.json({ error: 'figmaData и fileKey обязательны' }, { status: 400 })
+    }
+
+    const document = figmaData.document
+    const fileName = figmaData.name || 'Figma Import'
+
+    const dbCategories = await db.category.findMany({ orderBy: { sortOrder: 'asc' } })
+
+    function collectAllComponents(node: FigmaNode): Array<{ id: string; name: string }> {
+      const result: Array<{ id: string; name: string }> = []
+      function walk(n: FigmaNode) {
+        if (n.type === 'COMPONENT') { result.push({ id: n.id, name: n.name }) }
+        else if (n.type === 'COMPONENT_SET' && n.children) {
+          for (const c of n.children) { if (c.type === 'COMPONENT') result.push({ id: c.id, name: c.name }) }
+        }
+        if (n.children) for (const c of n.children) walk(c)
+      }
+      walk(node)
+      return result
+    }
+    function countDirectIcons(nodes: FigmaNode[]): number {
+      let count = 0
+      for (const n of nodes) {
+        if (n.type === 'COMPONENT') count++
+        else if (n.type === 'COMPONENT_SET' && n.children) count += n.children.filter(c => c.type === 'COMPONENT').length
+      }
+      return count
+    }
+    function countAllIcons(node: FigmaNode): number { return collectAllComponents(node).length }
+    function countChildContainersWithIcons(node: FigmaNode): number {
+      if (!node.children) return 0
+      let count = 0
+      for (const child of node.children) {
+        if ((child.type === 'FRAME' || child.type === 'GROUP') && child.children) {
+          if (countAllIcons(child) > 0) count++
+        }
+      }
+      return count
+    }
+    function suggestStyleFromChildren(node: FigmaNode): string {
+      const components = collectAllComponents(node)
+      if (components.length === 0) return 'outline'
+      const names = components.slice(0, 20).map(c => c.name.toLowerCase())
+      const nameStr = names.join(' ')
+      if (/thin|light|ultra.?thin/.test(nameStr)) return 'thin'
+      if (/duotone|two.?tone|dual/.test(nameStr)) return 'duotone'
+      if (/filled|solid|bold/.test(nameStr)) return 'filled'
+      if (/brand|logo|social/.test(nameStr)) return 'brand'
+      if (/regular|outline|line|stroke/.test(nameStr)) return 'outline'
+      return 'outline'
+    }
+    function groupComponentsByPrefix(components: Array<{ id: string; name: string }>, pageStyle: string, pageId: string): FrameInfo[] {
+      const groups: Record<string, Array<{ id: string; name: string }>> = {}
+      const noPrefix: Array<{ id: string; name: string }> = []
+      for (const comp of components) {
+        const parts = comp.name.split(' / ')
+        if (parts.length >= 2) { const prefix = parts[0].trim(); if (!groups[prefix]) groups[prefix] = []; groups[prefix].push(comp) }
+        else { noPrefix.push(comp) }
+      }
+      const frames: FrameInfo[] = []
+      for (const [prefix, comps] of Object.entries(groups)) {
+        frames.push({ id: `${pageId}__prefix__${prefix.toLowerCase().replace(/\s+/g, '-')}`, name: prefix, iconCount: comps.length, suggestedCategory: prefixToCategory(prefix), suggestedStyle: pageStyle })
+      }
+      if (noPrefix.length > 0) {
+        const catScores: Record<string, number> = {}
+        for (const comp of noPrefix) { const { category, confidence } = suggestCategoryByName(comp.name); if (category !== 'uncategorized') catScores[category] = (catScores[category] || 0) + confidence }
+        let bestCat = 'uncategorized', bestScore = 0
+        for (const [cat, score] of Object.entries(catScores)) { if (score > bestScore) { bestScore = score; bestCat = cat } }
+        frames.push({ id: `${pageId}__prefix__other`, name: 'Other', iconCount: noPrefix.length, suggestedCategory: bestCat, suggestedStyle: pageStyle })
+      }
+      return frames
+    }
+    function findIconFrames(page: FigmaNode, pageStyle: string): FrameInfo[] {
+      const frames: FrameInfo[] = []
+      if (!page.children) return frames
+      const directIcons = countDirectIcons(page.children)
+      const childContainersWithIcons = countChildContainersWithIcons(page)
+      if (childContainersWithIcons >= 2) {
+        for (const child of page.children) {
+          if ((child.type === 'FRAME' || child.type === 'GROUP') && child.children) {
+            const childIcons = countAllIcons(child)
+            if (childIcons > 0) {
+              const subContainers = countChildContainersWithIcons(child)
+              if (subContainers >= 2) {
+                for (const sub of child.children || []) {
+                  if ((sub.type === 'FRAME' || sub.type === 'GROUP') && sub.children) {
+                    const subIcons = countAllIcons(sub)
+                    if (subIcons > 0) frames.push({ id: sub.id, name: `${child.name} / ${sub.name}`, iconCount: subIcons, suggestedCategory: prefixToCategory(sub.name), suggestedStyle: suggestStyleFromChildren(sub) || pageStyle })
+                  }
+                }
+              } else {
+                frames.push({ id: child.id, name: child.name, iconCount: childIcons, suggestedCategory: prefixToCategory(child.name), suggestedStyle: suggestStyleFromChildren(child) || pageStyle })
+              }
+            }
+          }
+        }
+      } else if (directIcons > 0) {
+        const components = collectAllComponents(page)
+        if (components.length > 0) {
+          const prefixGroups = groupComponentsByPrefix(components, pageStyle, page.id)
+          if (prefixGroups.length > 1) frames.push(...prefixGroups)
+          else frames.push({ id: page.id, name: page.name, iconCount: components.length, suggestedCategory: prefixToCategory(page.name), suggestedStyle: pageStyle })
+        }
+      } else {
+        const components = collectAllComponents(page)
+        if (components.length > 0) { const prefixGroups = groupComponentsByPrefix(components, pageStyle, page.id); frames.push(...prefixGroups) }
+      }
+      return frames
+    }
+
+    const pages: PageInfo[] = []
+    let totalIcons = 0
+    for (const page of document.children || []) {
+      if (page.type !== 'CANVAS') continue
+      const pageStyle = suggestStyleFromChildren(page) || suggestStyleFromName(page.name)
+      const pageFrames = findIconFrames(page, pageStyle)
+      const pageIconCount = pageFrames.reduce((s, f) => s + f.iconCount, 0)
+      if (pageIconCount > 0) {
+        totalIcons += pageIconCount
+        const pageCat = suggestCategoryByName(page.name)
+        pages.push({ id: page.id, name: page.name, iconCount: pageIconCount, frames: pageFrames, suggestedCategory: pageCat.category, suggestedStyle: pageStyle })
+      }
+    }
+
+    return NextResponse.json({
+      fileName, totalIcons, pages,
+      categories: dbCategories.map(c => ({ slug: c.slug, nameRu: c.nameRu, nameEn: c.nameEn })),
+    })
+  } catch (e: any) {
+    console.error('[/api/admin/figma-import PUT] ERROR:', e?.message || e)
+    return NextResponse.json({ error: e?.message || 'Internal Server Error' }, { status: 500 })
+  }
+}
+
+/**
  * POST /api/admin/figma-import
  *
  * Import icons from a Figma file.
@@ -612,13 +757,14 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { figmaToken, fileKey, category, style, packNameRu, packNameEn, frames: frameConfig } = body as {
+    const { figmaToken, fileKey, category, style, packNameRu, packNameEn, figmaData, frames: frameConfig } = body as {
       figmaToken: string
       fileKey: string
       category?: string
       style?: string
       packNameRu?: string
       packNameEn?: string
+      figmaData?: any
       frames?: Array<{ id: string; name: string; category: string; style: string; enabled: boolean; pageName: string }>
     }
 
@@ -667,14 +813,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Укажите category или массив frames' }, { status: 400 })
     }
 
-    // 1. Fetch only the specific nodes we need (lighter than full file)
-    // Collect frame IDs from config
+    // 1. Get file structure — prefer pre-fetched data from browser to avoid server-side Figma API calls
     const frameIds = frameConfig?.map(fc => fc.id).filter(id => !id.includes('__')) || []
     
     let document: FigmaNode
     let fileName: string
 
-    if (frameIds.length > 0 && frameIds.length <= 20) {
+    if (figmaData) {
+      // Browser already fetched the file — use it directly (no server-side Figma API call!)
+      console.log(`[figma-import] Using pre-fetched figmaData from browser`)
+      document = figmaData.document
+      fileName = figmaData.name || 'Figma Import'
+    } else if (frameIds.length > 0 && frameIds.length <= 20) {
       // Use lighter /nodes endpoint for targeted fetch
       console.log(`[figma-import] Fetching ${frameIds.length} specific nodes via /nodes API`)
       const nodesRes = await fetchFigmaApi(
