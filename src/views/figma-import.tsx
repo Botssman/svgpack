@@ -140,51 +140,114 @@ function ZipImportFlow() {
   const [totalIcons, setTotalIcons] = useState(0)
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<any>(null)
+  const [zipCount, setZipCount] = useState(0)
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  // Merge new groups into existing ones (combines groups with same name)
+  const mergeGroups = (existing: ZipGroup[], incoming: ZipGroup[]): ZipGroup[] => {
+    const map = new Map<string, ZipGroup>()
+    for (const g of existing) {
+      map.set(g.name, g)
+    }
+    for (const g of incoming) {
+      const existingGroup = map.get(g.name)
+      if (existingGroup) {
+        // Merge icons into existing group
+        existingGroup.icons = [...existingGroup.icons, ...g.icons]
+        existingGroup.iconCount = existingGroup.icons.length
+      } else {
+        map.set(g.name, { ...g })
+      }
+    }
+    return Array.from(map.values())
+  }
+
+  const processFiles = async (files: FileList | File[]) => {
+    if (files.length === 0) return
 
     setUploading(true)
-    const formData = new FormData()
-    formData.append('file', file)
+    let allNewGroups: ZipGroup[] = []
+    let allNewIcons = 0
+    let lastCategories: CategoryOption[] = categories
+    let hasError = false
 
-    try {
-      const res = await fetch('/api/admin/zip-multipack', {
-        method: 'POST',
-        body: formData,
-      })
-      const data = await res.json()
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (!file.name.endsWith('.zip')) continue
 
-      if (res.ok && data.ok) {
-        setGroups(data.groups || [])
-        setTotalIcons(data.totalIcons || 0)
-        setCategories(data.categories || [])
+      const formData = new FormData()
+      formData.append('file', file)
 
-        // Initialize group configs
-        const configs: ZipGroupConfig[] = (data.groups || []).map(g => ({
+      try {
+        const res = await fetch('/api/admin/zip-multipack', {
+          method: 'POST',
+          body: formData,
+        })
+        const data = await res.json()
+
+        if (res.ok && data.ok) {
+          allNewGroups = mergeGroups(allNewGroups, data.groups || [])
+          allNewIcons += data.totalIcons || 0
+          lastCategories = data.categories || []
+        } else {
+          toast({ title: `${file.name}: ${data.error || 'Ошибка загрузки'}` })
+          hasError = true
+        }
+      } catch (e: any) {
+        toast({ title: `${file.name}: ${e?.message || 'Ошибка'}` })
+        hasError = true
+      }
+    }
+
+    if (allNewGroups.length > 0) {
+      // Merge with existing groups (for "Add more ZIP" flow)
+      const merged = mergeGroups(groups, allNewGroups)
+      setGroups(merged)
+      setTotalIcons(prev => prev + allNewIcons)
+      setCategories(lastCategories)
+
+      // Build configs — keep existing config, add new groups
+      const newConfigs: ZipGroupConfig[] = merged.map(g => {
+        const existingConfig = groupConfigs.find(c => c.name === g.name)
+        if (existingConfig) {
+          return { ...existingConfig, iconCount: g.iconCount }
+        }
+        return {
           name: g.name,
           category: g.suggestedCategory || 'uncategorized',
           style: g.suggestedStyle || 'outline',
           enabled: true,
           iconCount: g.iconCount,
-        }))
-        setGroupConfigs(configs)
-        setStep(2)
+        }
+      })
+      setGroupConfigs(newConfigs)
+      setZipCount(prev => prev + files.length)
+      setStep(2)
 
-        toast({
-          title: lang === 'ru'
-            ? `Найдено ${data.totalIcons} иконок в ${data.groups.length} группах`
-            : `Found ${data.totalIcons} icons in ${data.groups.length} groups`,
-        })
-      } else {
-        toast({ title: data.error || 'Ошибка загрузки ZIP' })
-      }
-    } catch (e: any) {
-      toast({ title: e?.message || 'Ошибка' })
-    } finally {
-      setUploading(false)
+      toast({
+        title: lang === 'ru'
+          ? `Найдено ${merged.reduce((s, g) => s + g.iconCount, 0)} иконок в ${merged.length} группах`
+          : `Found ${merged.reduce((s, g) => s + g.iconCount, 0)} icons in ${merged.length} groups`,
+      })
+    } else if (!hasError) {
+      toast({ title: lang === 'ru' ? 'ZIP не содержит SVG-файлов' : 'ZIP contains no SVG files' })
     }
+
+    setUploading(false)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    await processFiles(Array.from(files))
+    // Reset input so same file can be re-uploaded
+    e.target.value = ''
+  }
+
+  const handleAddMoreZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    await processFiles(Array.from(files))
+    e.target.value = ''
   }
 
   const handleImport = async () => {
@@ -279,39 +342,56 @@ function ZipImportFlow() {
             </p>
           </div>
 
-          {/* File input */}
+          {/* File input — supports multiple ZIPs */}
           <div className="relative">
             <input
               type="file"
               accept=".zip"
+              multiple
               onChange={handleFileUpload}
               disabled={uploading}
               className="w-full px-3 py-8 rounded-lg border-2 border-dashed border-slate-300 text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-neutral-900 file:text-white hover:file:bg-neutral-700 file:cursor-pointer disabled:opacity-50"
             />
             {uploading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-lg">
-                <div className="w-6 h-6 border-2 border-slate-200 border-t-neutral-900 rounded-full animate-spin" />
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-6 h-6 border-2 border-slate-200 border-t-neutral-900 rounded-full animate-spin" />
+                  <span className="text-xs text-slate-500">{lang === 'ru' ? 'Обработка ZIP...' : 'Processing ZIP...'}</span>
+                </div>
               </div>
             )}
           </div>
+
+          <p className="text-xs text-slate-400">
+            {lang === 'ru'
+              ? 'Можно выбрать несколько ZIP-файлов сразу (по одному на каждую страницу Figma)'
+              : 'You can select multiple ZIP files at once (one per Figma page)'}
+          </p>
 
           {/* How-to guide */}
           <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-4">
             <h4 className="text-sm font-medium text-emerald-800 mb-2">
               {lang === 'ru' ? 'Как экспортировать иконки из Figma' : 'How to export icons from Figma'}
             </h4>
-            <ol className="text-xs text-emerald-700 space-y-1 list-decimal pl-4">
+            <ol className="text-xs text-emerald-700 space-y-1.5 list-decimal pl-4">
               <li>{lang === 'ru' ? 'Откройте файл в Figma Desktop или браузере' : 'Open the file in Figma Desktop or browser'}</li>
-              <li>{lang === 'ru' ? 'Выделите все компоненты иконок (Ctrl+A на странице)' : 'Select all icon components (Ctrl+A on the page)'}</li>
-              <li>{lang === 'ru' ? 'Нажмите правой кнопкой → Export selection → SVG' : 'Right-click → Export selection → SVG'}</li>
-              <li>{lang === 'ru' ? 'Figma скачает ZIP-архив с SVG-файлами' : 'Figma will download a ZIP archive with SVG files'}</li>
-              <li>{lang === 'ru' ? 'Загрузите этот ZIP сюда' : 'Upload that ZIP here'}</li>
+              <li>{lang === 'ru' ? 'Перейдите на страницу с иконками (например «Outline»)' : 'Go to the page with icons (e.g. "Outline")'}</li>
+              <li>{lang === 'ru' ? 'Выделите все компоненты (Ctrl+A) → правая кнопка → Export → SVG' : 'Select all components (Ctrl+A) → right-click → Export → SVG'}</li>
+              <li>{lang === 'ru' ? 'Figma скачает ZIP. Повторите для каждой страницы' : 'Figma downloads a ZIP. Repeat for each page'}</li>
+              <li>{lang === 'ru' ? 'Загрузите ВСЕ ZIP-файлы сразу (можно выбрать несколько)' : 'Upload ALL ZIP files at once (select multiple)'}</li>
             </ol>
-            <p className="text-xs text-emerald-600 mt-2">
-              {lang === 'ru'
-                ? 'Совет: если иконки называются "Arrow - Arrow Up.svg", они автоматически сгруппируются в пак "Arrow".'
-                : 'Tip: if icons are named "Arrow - Arrow Up.svg", they will auto-group into an "Arrow" pack.'}
-            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-xs text-emerald-600">
+                {lang === 'ru'
+                  ? '💡 Совет: если иконки называются "Arrow - Arrow Up.svg", они автоматически сгруппируются в пак "Arrow".'
+                  : '💡 Tip: icons named "Arrow - Arrow Up.svg" auto-group into an "Arrow" pack.'}
+              </p>
+              <p className="text-xs text-emerald-600">
+                {lang === 'ru'
+                  ? '💡 Можно загружать по одному ZIP за раз — на шаге 2 будет кнопка «Добавить ещё ZIP».'
+                  : '💡 You can upload one ZIP at a time — step 2 has an "Add more ZIP" button.'}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -327,17 +407,32 @@ function ZipImportFlow() {
                   {lang === 'ru' ? 'ZIP-импорт' : 'ZIP Import'}
                 </h3>
                 <p className="text-sm text-slate-500 mt-1">
+                  {zipCount} {lang === 'ru' ? (zipCount === 1 ? 'ZIP' : 'ZIP-архивов') : (zipCount === 1 ? 'ZIP' : 'ZIPs')}{' · '}
                   {groups.length} {lang === 'ru' ? (groups.length === 1 ? 'группа' : groups.length < 5 ? 'группы' : 'групп') : (groups.length === 1 ? 'group' : 'groups')}
                   {' · '}
                   {totalIcons} {lang === 'ru' ? 'иконок' : 'icons'}
                 </p>
               </div>
-              <button
-                onClick={() => { setStep(1); setGroups([]); setGroupConfigs([]) }}
-                className="text-sm text-slate-500 hover:text-slate-700 underline"
-              >
-                {lang === 'ru' ? 'Изменить' : 'Change'}
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Add more ZIP button */}
+                <label className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-medium hover:bg-blue-100 cursor-pointer transition-colors">
+                  {lang === 'ru' ? '+ Добавить ещё ZIP' : '+ Add more ZIP'}
+                  <input
+                    type="file"
+                    accept=".zip"
+                    multiple
+                    onChange={handleAddMoreZip}
+                    disabled={uploading}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={() => { setStep(1); setGroups([]); setGroupConfigs([]); setZipCount(0); setTotalIcons(0) }}
+                  className="text-sm text-slate-500 hover:text-slate-700 underline"
+                >
+                  {lang === 'ru' ? 'Сбросить' : 'Reset'}
+                </button>
+              </div>
             </div>
           </div>
 
