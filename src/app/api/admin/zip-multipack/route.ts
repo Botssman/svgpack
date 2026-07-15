@@ -99,7 +99,8 @@ function suggestStyle(name: string): string {
   if (/fill|filled/.test(lower)) return 'filled'
   if (/bold|solid|heavy|thick/.test(lower)) return 'filled'
   if (/thin|light/.test(lower)) return 'thin'
-  if (/regular|outline|line|stroke/.test(lower)) return 'outline'
+  if (/regular|outline|line|stroke|straight/.test(lower)) return 'outline'
+  if (/rounded|round/.test(lower)) return 'outline'
   return 'outline'
 }
 
@@ -142,7 +143,133 @@ function translateToRu(words: string[]): string {
 type MetaValue = string | { nameRu?: string; nameEn?: string; keywords?: string }
 type MetaMap = Record<string, MetaValue>
 
-// ── Parse a single SVG file ──
+// ═══════════════════════════════════════════════════════════
+// Sprite Sheet Parser (Flaticon / Uicons format)
+// ═══════════════════════════════════════════════════════════
+// Flaticon exports: one huge SVG with all icons in a grid.
+// Each icon is in <g clip-path="url(#clipN)">, bounding boxes
+// defined by <clipPath><rect transform="translate(x,y)" w h/> in <defs>.
+
+interface SpriteIcon {
+  slug: string
+  nameRu: string
+  nameEn: string
+  keywords: string
+  svg: string
+  viewBox: string
+  folder: string
+  prefix: string
+}
+
+function parseSpriteSheet(svgContent: string, fileName: string): SpriteIcon[] | null {
+  // Quick check: does this SVG have multiple <g clip-path="url(#...)" elements?
+  const clipGroupMatches = svgContent.match(/<g[^>]+clip-path\s*=\s*["']url\(#/g)
+  if (!clipGroupMatches || clipGroupMatches.length < 3) return null
+
+  // Extract the sprite sheet name (filename without extension)
+  const sheetName = fileName.replace(/\.svg$/i, '').trim()
+
+  // Parse clipPath definitions from <defs>
+  const clipMap = new Map<string, { x: number; y: number; w: number; h: number }>()
+  const defsMatch = svgContent.match(/<defs[^>]*>([\s\S]*?)<\/defs>/i)
+  if (!defsMatch) return null
+
+  const defsContent = defsMatch[1]
+  const cpRegex = /<clipPath[^>]*\bid\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/clipPath>/gi
+  let cpMatch: RegExpExecArray | null
+  while ((cpMatch = cpRegex.exec(defsContent)) !== null) {
+    const cpId = cpMatch[1]
+    const cpContent = cpMatch[2]
+    const rectMatches = [...cpContent.matchAll(/<rect([^>]+)\/?>/gi)]
+    if (rectMatches.length === 0) continue
+    const lastRect = rectMatches[rectMatches.length - 1][1]
+
+    const wMatch = lastRect.match(/\bwidth\s*=\s*["']([\d.]+)["']/)
+    const hMatch = lastRect.match(/\bheight\s*=\s*["']([\d.]+)["']/)
+    if (!wMatch || !hMatch) continue
+
+    const tMatch = lastRect.match(/transform\s*=\s*["']translate\(([\d.]+)[,\s]+([\d.]+)\)["']/i)
+    const tx = tMatch ? parseFloat(tMatch[1]) : 0
+    const ty = tMatch ? parseFloat(tMatch[2]) : 0
+
+    clipMap.set(cpId, { x: tx, y: ty, w: parseFloat(wMatch[1]), h: parseFloat(hMatch[1]) })
+  }
+
+  if (clipMap.size < 3) return null
+
+  // Extract each icon group — use balanced-tag parsing since <g> can be nested
+  const icons: SpriteIcon[] = []
+  const gOpenRegex = /<g[^>]*clip-path\s*=\s*["']url\(#([^"']+)\)["'][^>]*>/gi
+  let gOpenMatch: RegExpExecArray | null
+  let iconIndex = 0
+
+  while ((gOpenMatch = gOpenRegex.exec(svgContent)) !== null) {
+    const clipId = gOpenMatch[1]
+    const bbox = clipMap.get(clipId)
+    if (!bbox) continue
+
+    // Skip non-icon elements (e.g. text banners with unusual sizes like 107x15)
+    if (bbox.w < 16 || bbox.h < 16) continue
+
+    // Extract the content between this <g> and its matching </g>
+    // by counting nested <g>/<g> pairs
+    const afterOpen = svgContent.substring(gOpenMatch.index + gOpenMatch[0].length)
+    let depth = 1
+    let endIdx = 0
+    const tagRegex = /<\/?g[\s>]/gi
+    let tagMatch: RegExpExecArray | null
+    while ((tagMatch = tagRegex.exec(afterOpen)) !== null) {
+      if (tagMatch[0].startsWith('</g')) {
+        depth--
+        if (depth === 0) {
+          endIdx = tagMatch.index
+          break
+        }
+      } else {
+        depth++
+      }
+    }
+
+    if (endIdx === 0) continue // unbalanced, skip
+
+    const innerContent = afterOpen.substring(0, endIdx).trim()
+    if (!innerContent) continue
+
+    // Translate the icon to local coordinates (0,0 origin)
+    const translateX = -bbox.x
+    const translateY = -bbox.y
+    const localSvg = `<g transform="translate(${translateX}, ${translateY})">${innerContent}</g>`
+
+    // Generate a slug from the sheet name + index
+    const sheetSlug = sheetName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    const slug = `${sheetSlug}-${iconIndex + 1}`
+    const nameEn = `${sheetName} ${iconIndex + 1}`
+    const nameRu = `${sheetName} ${iconIndex + 1}`
+
+    // Normalize viewBox to "0 0 W H"
+    const vbW = Math.round(bbox.w)
+    const vbH = Math.round(bbox.h)
+    const viewBox = `0 0 ${vbW} ${vbH}`
+
+    icons.push({
+      slug,
+      nameRu,
+      nameEn,
+      keywords: sheetName.toLowerCase(),
+      svg: localSvg,
+      viewBox,
+      folder: sheetName,
+      prefix: sheetName,
+    })
+
+    iconIndex++
+  }
+
+  console.log(`[sprite-sheet] Extracted ${icons.length} icons from "${sheetName}"`)
+  return icons.length > 0 ? icons : null
+}
+
+// ── Parse a single SVG file (one icon per file) ──
 function parseSvgIcon(
   svgContent: string,
   rawName: string,
@@ -291,13 +418,23 @@ async function handleZipUpload(req: NextRequest) {
     }
 
     const allIcons: ParsedIcon[] = []
+    let spriteSheetsFound = 0
 
     for (const { path, zipEntry } of svgFiles) {
       const svgContent = await zipEntry.async('string')
 
-      // Determine folder
+      // ── Try sprite sheet format first (Flaticon / Uicons) ──
       const pathParts = path.split('/')
       const fileName = pathParts.pop() || 'icon'
+      const spriteIcons = parseSpriteSheet(svgContent, fileName)
+      if (spriteIcons) {
+        // Sprite sheet detected — each SVG = one group of icons
+        spriteSheetsFound++
+        allIcons.push(...spriteIcons)
+        continue
+      }
+
+      // ── Standard per-file format (Figma export, etc.) ──
       const folder = pathParts.length > 0 ? pathParts.join('/') : '_root'
 
       // Determine prefix from filename (remove .svg extension first)
@@ -329,6 +466,10 @@ async function handleZipUpload(req: NextRequest) {
       if (!parsed) continue
 
       allIcons.push({ ...parsed, folder, prefix })
+    }
+
+    if (spriteSheetsFound > 0) {
+      console.log(`[zip-multipack] Detected ${spriteSheetsFound} sprite sheet(s)`)
     }
 
     console.log(`[zip-multipack] Parsed ${allIcons.length} icons`)
